@@ -427,6 +427,13 @@ function useStoreProvider() {
     addTodo(t) { mutate(d => { d.todos.unshift({ ...t, id: uid(), createdAt: Date.now() }); }); },
     updateTodo(id, t) { mutate(d => { const i = d.todos.findIndex(x => x.id === id); if (i >= 0) d.todos[i] = { ...d.todos[i], ...t }; }); },
     deleteTodo(id) { mutate(d => { d.todos = d.todos.filter(x => x.id !== id); }); },
+    // reorder the to-do backlog to match orderedIds
+    reorderTodos(orderedIds) {
+      mutate(d => {
+        const byId = new Map((d.todos || []).map(t => [t.id, t]));
+        d.todos = orderedIds.map(id => byId.get(id)).filter(Boolean);
+      });
+    },
 
     // groups
     addGroup(g) { mutate(d => { d.groups.unshift({ ...g, id: uid(), createdAt: Date.now() }); }); },
@@ -898,6 +905,36 @@ function CatDot({ color, size = 9, ring }) {
   );
 }
 
+// ── color picker: preset swatches + a custom (any) color ──────
+function CategoryColorPicker({ value, onChange, size = 26 }) {
+  const isCustom = value && !CATEGORY_COLORS.includes(value);
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
+      {CATEGORY_COLORS.map(col => (
+        <button type="button" key={col} onClick={() => onChange(col)}
+          style={{
+            width: size, height: size, borderRadius: 999, background: col, cursor: 'pointer',
+            border: col === value ? '2px solid var(--text)' : '2px solid transparent',
+            boxShadow: '0 0 0 1px var(--border)',
+          }} />
+      ))}
+      {/* custom: native color picker behind a swatch (rainbow until a custom color is set) */}
+      <label title="Custom color"
+        style={{
+          position: 'relative', width: size, height: size, borderRadius: 999, cursor: 'pointer',
+          flexShrink: 0,
+          background: isCustom ? value : 'conic-gradient(from 0deg, #e5484d, #f08c00, #0f9d6b, #2f6feb, #7048e8, #d6336c, #e5484d)',
+          border: isCustom ? '2px solid var(--text)' : '2px solid transparent',
+          boxShadow: '0 0 0 1px var(--border)',
+        }}>
+        <input type="color" value={isCustom ? value : '#888888'}
+          onChange={e => onChange(e.target.value)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', border: 'none', padding: 0 }} />
+      </label>
+    </div>
+  );
+}
+
 // ── switcher pill (Tasks page) ────────────────────────────────
 function CategoryPill({ cat, active, count, onClick, onLongPress }) {
   const handlers = useLongPress(onLongPress, onClick);
@@ -1025,15 +1062,9 @@ function CategoryRow({ cat, index, total }) {
       </div>
 
       {showColors && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '10px 4px 4px 4px' }}>
-          {CATEGORY_COLORS.map(col => (
-            <button type="button" key={col} onClick={() => { actions.updateCategory(cat.id, { color: col }); setShowColors(false); }}
-              style={{
-                width: 24, height: 24, borderRadius: 999, background: col, cursor: 'pointer',
-                border: col === cat.color ? '2px solid var(--text)' : '2px solid transparent',
-                boxShadow: '0 0 0 1px var(--border)',
-              }} />
-          ))}
+        <div style={{ padding: '10px 4px 4px 4px' }}>
+          <CategoryColorPicker value={cat.color} size={24}
+            onChange={col => actions.updateCategory(cat.id, { color: col })} />
         </div>
       )}
 
@@ -1088,16 +1119,8 @@ function CategoryActionSheet({ open, catId, onClose, onManageAll }) {
         {/* color */}
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>Color</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {CATEGORY_COLORS.map(col => (
-              <button type="button" key={col} onClick={() => actions.updateCategory(cat.id, { color: col })}
-                style={{
-                  width: 28, height: 28, borderRadius: 999, background: col, cursor: 'pointer',
-                  border: col === cat.color ? '2px solid var(--text)' : '2px solid transparent',
-                  boxShadow: '0 0 0 1px var(--border)',
-                }} />
-            ))}
-          </div>
+          <CategoryColorPicker value={cat.color} size={28}
+            onChange={col => actions.updateCategory(cat.id, { color: col })} />
         </div>
 
         {/* delete */}
@@ -1179,15 +1202,8 @@ function ManageCategoriesSheet({ open, onClose }) {
               style={{ flex: 1, fontSize: 14, fontWeight: 600, padding: '9px 11px', background: 'var(--bg)' }} />
             <Btn variant="primary" size="sm" onClick={add} disabled={!name.trim()}><IconPlus size={14} /> Add</Btn>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 11 }}>
-            {CATEGORY_COLORS.map(col => (
-              <button type="button" key={col} onClick={() => setColor(col)}
-                style={{
-                  width: 22, height: 22, borderRadius: 999, background: col, cursor: 'pointer',
-                  border: col === color ? '2px solid var(--text)' : '2px solid transparent',
-                  boxShadow: '0 0 0 1px var(--border)',
-                }} />
-            ))}
+          <div style={{ marginTop: 11 }}>
+            <CategoryColorPicker value={color} size={22} onChange={setColor} />
           </div>
         </div>
 
@@ -2481,15 +2497,28 @@ function TodoForm({ initial, onCancel, onSave }) {
 }
 
 // ── To-do card ────────────────────────────────────────────────
-function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit }) {
+function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle, dragging }) {
   const { data, actions } = React.useContext(StoreContext);
   const info = dueInfo(todo.due);
   return (
     <div className="task-card" style={{
       border: '1px solid var(--border)', borderRadius: 8, padding: '9px 13px',
       borderLeft: info.tone === 'over' ? '3px solid #e5484d' : '1px solid var(--border)',
+      background: 'var(--bg)',
+      boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.14)' : 'none',
+      borderColor: dragging ? 'var(--accent)' : 'var(--border)',
+      transition: 'box-shadow .14s, border-color .14s',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        {dragHandle && (
+          <span onPointerDown={dragHandle} title="Drag to reorder"
+            style={{
+              cursor: 'grab', color: 'var(--muted)', display: 'inline-flex', flexShrink: 0,
+              touchAction: 'none', marginLeft: -4, marginTop: 1, padding: '2px 0',
+            }}>
+            <IconGrip size={16} />
+          </span>
+        )}
         <div style={{ minWidth: 0, flex: 1, fontSize: 14, fontWeight: 600, letterSpacing: -0.2, lineHeight: 1.3 }}>{todo.title}</div>
         <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
           <IconBtn className="del-btn" size={26} onClick={() => onEdit(todo)} title="Edit"><IconPencil size={16} /></IconBtn>
@@ -2513,18 +2542,79 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit }) {
   );
 }
 
+// ── Sortable to-do list (pointer-based drag to reorder) ───────
+function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mode, onEdit, onCancelEdit, onSaveEdit }) {
+  const [order, setOrder] = React.useState(todos);
+  const [dragId, setDragId] = React.useState(null);
+  const orderRef = React.useRef(todos);
+  const rowRefs = React.useRef(new Map());
+
+  React.useEffect(() => {
+    if (dragId == null) { orderRef.current = todos; setOrder(todos); }
+  }, [todos, dragId]);
+
+  const setOrd = (next) => { orderRef.current = next; setOrder(next); };
+
+  const startDrag = (id) => (e) => {
+    e.preventDefault();
+    setDragId(id);
+    document.body.style.userSelect = 'none';
+    const move = (ev) => {
+      const y = ev.clientY;
+      let targetId = null;
+      for (const [rid, el] of rowRefs.current.entries()) {
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (y >= r.top && y <= r.bottom) { targetId = rid; break; }
+      }
+      if (targetId && targetId !== id) {
+        const cur = orderRef.current;
+        const from = cur.findIndex(t => t.id === id);
+        const to = cur.findIndex(t => t.id === targetId);
+        if (from >= 0 && to >= 0) {
+          const a = [...cur];
+          const [m] = a.splice(from, 1);
+          a.splice(to, 0, m);
+          setOrd(a);
+        }
+      }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.userSelect = '';
+      setDragId(null);
+      actions.reorderTodos(orderRef.current.map(t => t.id));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {order.map(t => (
+        <div key={t.id}
+          ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
+          {mode && mode.id === t.id ? (
+            <TodoForm initial={t} onCancel={onCancelEdit} onSave={(nt) => onSaveEdit(t.id, nt)} />
+          ) : (
+            <TodoCard todo={t} dkey={dkey} todayKey={todayKey}
+              addedToday={addedSet.has(t.id)} toast={toast} onEdit={onEdit}
+              dragHandle={startDrag(t.id)} dragging={dragId === t.id} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TodoPage({ page, setPage, dkey, toast }) {
   const { data, actions } = React.useContext(StoreContext);
   const [mode, setMode] = React.useState(null); // null | 'new' | todo
   const todayKey = dateKey(new Date());
 
-  const todos = React.useMemo(() => {
-    return [...(data.todos || [])].sort((a, b) => {
-      const da = dueInfo(a.due).sort, db = dueInfo(b.due).sort;
-      if (da !== db) return da - db;
-      return b.createdAt - a.createdAt;
-    });
-  }, [data.todos]);
+  // manual order: respect the stored backlog order (drag to reorder)
+  const todos = data.todos || [];
 
   // which todos already have an incomplete task on today's list
   const addedSet = React.useMemo(() => {
@@ -2545,7 +2635,7 @@ function TodoPage({ page, setPage, dkey, toast }) {
 
       <div style={{ padding: '14px 14px 40px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ fontSize: 12.5, color: 'var(--text2)', padding: '0 2px 2px' }}>
-          Things to do soon — sorted by deadline. Add one to a day when you’re ready to tackle it.
+          Things to do soon — drag the handle to reorder. Add one to a day when you’re ready to tackle it.
         </div>
 
         {mode === 'new' && (
@@ -2557,15 +2647,11 @@ function TodoPage({ page, setPage, dkey, toast }) {
             sub="Jot down errands and one-offs you need to get to — like returning a package."
             cta={<Btn variant="primary" onClick={() => setMode('new')}><IconPlus size={15} /> Add a to-do</Btn>} />
         ) : (
-          todos.map(t => (
-            mode && mode.id === t.id ? (
-              <TodoForm key={t.id} initial={t} onCancel={() => setMode(null)}
-                onSave={(nt) => { actions.updateTodo(t.id, nt); setMode(null); toast('Updated'); }} />
-            ) : (
-              <TodoCard key={t.id} todo={t} dkey={dkey} todayKey={todayKey}
-                addedToday={addedSet.has(t.id)} toast={toast} onEdit={(td) => setMode(td)} />
-            )
-          ))
+          <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
+            addedSet={addedSet} dkey={dkey} toast={toast} mode={mode}
+            onEdit={(td) => setMode(td)}
+            onCancelEdit={() => setMode(null)}
+            onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
         )}
       </div>
     </div>
