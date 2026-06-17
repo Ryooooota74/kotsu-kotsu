@@ -4091,19 +4091,38 @@ Object.assign(window, {
 });
 
 // ===================== app.jsx =====================
-// app.jsx — root App: store provider, device switch (iPhone/iPad/Laptop),
-// page routing, modals, toast, tweaks, responsive frames.
+// app.jsx — root App: store provider, responsive layout (phone / tablet /
+// desktop chosen from the real viewport), page routing, modals, toast, tweaks.
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "#111111",
   "checkStyle": "solid"
 }/*EDITMODE-END*/;
 
-const DEVICES = [
-  { key: 'phone',  label: 'iPhone', outerW: 402,  outerH: 874 },
-  { key: 'ipad',   label: 'iPad',   outerW: 1162, outerH: 784 },
-  { key: 'laptop', label: 'Laptop', outerW: 1280, outerH: 796 },
-];
+// Pick the layout from the actual viewport width (no manual switcher):
+//   < 768px  → phone (single column, bottom + button)
+//   < 1200px → ipad  (sidebar + schedule)
+//   ≥ 1200px → laptop (sidebar + schedule + mini-month)
+function pickDevice(w) {
+  if (w < 768) return 'phone';
+  if (w < 1200) return 'ipad';
+  return 'laptop';
+}
+function useViewport() {
+  const [device, setDevice] = React.useState(() =>
+    pickDevice(typeof window !== 'undefined' ? window.innerWidth : 1280));
+  React.useEffect(() => {
+    const onResize = () => setDevice(pickDevice(window.innerWidth));
+    onResize();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+  return device;
+}
 
 function Toast({ msg }) {
   if (!msg) return null;
@@ -4130,7 +4149,7 @@ function SyncBadge({ status }) {
   const s = map[status] || map.connecting;
   return (
     <div style={{
-      position: 'fixed', top: 18, left: 18, zIndex: 300,
+      position: 'fixed', left: 14, bottom: 'calc(14px + env(safe-area-inset-bottom))', zIndex: 300,
       display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px',
       borderRadius: 999, background: 'rgba(255,255,255,0.85)',
       backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
@@ -4143,88 +4162,52 @@ function SyncBadge({ status }) {
   );
 }
 
-// floating device switcher (outside the scaled frame)
-function DeviceSwitcher({ device, onChange }) {
-  return (
-    <div style={{
-      position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 300,
-      display: 'flex', gap: 3, padding: 4, borderRadius: 999,
-      background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      boxShadow: '0 6px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)',
-    }}>
-      {DEVICES.map(dev => {
-        const active = device === dev.key;
-        return (
-          <button type="button" key={dev.key} data-dev={dev.key} data-active={active ? '1' : '0'} onClick={() => onChange(dev.key)}
-            style={{
-              border: 'none', cursor: 'pointer', borderRadius: 999, padding: '7px 16px',
-              fontFamily: 'inherit', fontSize: 13, fontWeight: 600, letterSpacing: -0.1,
-              background: active ? 'var(--accent)' : 'transparent',
-              color: active ? '#fff' : 'var(--text2)',
-              transition: 'background .14s, color .14s',
-            }}>{dev.label}</button>
-        );
-      })}
-    </div>
-  );
-}
-
+// phone layout — fills the whole screen (no device bezel)
 function PhoneShell({ store, page, setPage, dkey, setDkey, toast }) {
-  const { actions } = store;
   const [addOpen, setAddOpen] = React.useState(false);
   const [addCat, setAddCat] = React.useState(null);
   const [applyOpen, setApplyOpen] = React.useState(false);
-  const [toastMsg, setToastMsg] = React.useState('');
 
   return (
-    <IOSDevice>
-      <div style={{ position: 'relative', height: '100%', background: 'var(--bg)' }}>
-        <div className="scrollarea" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
-          {page === 'tasks' && (
-            <TasksPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey}
-              onAdd={(c) => { setAddCat(c || null); setAddOpen(true); }} onApplyGroup={() => setApplyOpen(true)} />
-          )}
-          {page === 'todo' && <TodoPage page={page} setPage={setPage} dkey={dkey} toast={toast} />}
-          {page === 'calendar' && <CalendarPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} />}
-          {page === 'groups' && <GroupsPage page={page} setPage={setPage} dkey={dkey} toast={toast} />}
-        </div>
-
-        <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} />
-        <ApplyGroupSheet open={applyOpen} onClose={() => setApplyOpen(false)} dkey={dkey} />
-
+    <div style={{ position: 'relative', height: '100%', background: 'var(--bg)', overflow: 'hidden' }}>
+      <div className="scrollarea" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
         {page === 'tasks' && (
-          <button type="button" title="Add task"
-            onClick={() => { setAddCat(null); setAddOpen(true); }}
-            style={{
-              position: 'absolute', right: 18, bottom: 26, zIndex: 60,
-              width: 56, height: 56, borderRadius: 999, border: 'none', cursor: 'pointer',
-              background: 'var(--accent)', color: 'var(--on-accent)',
-              boxShadow: '0 10px 24px color-mix(in srgb, var(--accent) 44%, transparent)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'transform .12s, filter .12s',
-            }}
-            onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.93)'; }}
-            onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
-            <IconPlus size={27} sw={2.4} />
-          </button>
+          <TasksPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey}
+            onAdd={(c) => { setAddCat(c || null); setAddOpen(true); }} onApplyGroup={() => setApplyOpen(true)} />
         )}
+        {page === 'todo' && <TodoPage page={page} setPage={setPage} dkey={dkey} toast={toast} />}
+        {page === 'calendar' && <CalendarPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} />}
+        {page === 'groups' && <GroupsPage page={page} setPage={setPage} dkey={dkey} toast={toast} />}
       </div>
-    </IOSDevice>
+
+      <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} />
+      <ApplyGroupSheet open={applyOpen} onClose={() => setApplyOpen(false)} dkey={dkey} />
+
+      {page === 'tasks' && (
+        <button type="button" title="Add task"
+          onClick={() => { setAddCat(null); setAddOpen(true); }}
+          style={{
+            position: 'absolute', right: 18, bottom: 'calc(26px + env(safe-area-inset-bottom))', zIndex: 60,
+            width: 56, height: 56, borderRadius: 999, border: 'none', cursor: 'pointer',
+            background: 'var(--accent)', color: 'var(--on-accent)',
+            boxShadow: '0 10px 24px color-mix(in srgb, var(--accent) 44%, transparent)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'transform .12s, filter .12s',
+          }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.93)'; }}
+          onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
+          <IconPlus size={27} sw={2.4} />
+        </button>
+      )}
+    </div>
   );
 }
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const store = useStoreProvider();
-
-  const [device, setDevice] = React.useState(() => {
-    try { return localStorage.getItem('taskmgr_device') || 'phone'; } catch (e) { return 'phone'; }
-  });
-  const changeDevice = (d) => {
-    setDevice(d);
-    try { localStorage.setItem('taskmgr_device', d); } catch (e) {}
-  };
+  const device = useViewport();
 
   const [page, setPage] = React.useState('tasks');
   const [dkey, setDkey] = React.useState(() => dateKey(new Date()));
@@ -4236,18 +4219,6 @@ function App() {
     toastTimer.current = setTimeout(() => setToastMsg(''), 1900);
   }, []);
 
-  const dev = DEVICES.find(x => x.key === device) || DEVICES[0];
-  const [scale, setScale] = React.useState(1);
-  React.useEffect(() => {
-    const fit = () => {
-      const s = Math.min((window.innerHeight - 96) / dev.outerH, (window.innerWidth - 40) / dev.outerW, 1);
-      setScale(s > 0 ? s : 1);
-    };
-    fit();
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
-  }, [dev.outerW, dev.outerH]);
-
   const accentVars = {
     '--accent': t.accent,
     '--accent-soft': `color-mix(in srgb, ${t.accent} 13%, #fff)`,
@@ -4256,31 +4227,14 @@ function App() {
   return (
     <StoreContext.Provider value={store}>
       <AppCtx.Provider value={{ checkStyle: t.checkStyle }}>
-        <DeviceSwitcher device={device} onChange={changeDevice} />
-        <SyncBadge status={store.syncStatus} />
-
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '76px 16px 16px', boxSizing: 'border-box' }}>
-          <div style={{ width: dev.outerW * scale, height: dev.outerH * scale, flexShrink: 0 }}>
-            <div style={{ width: dev.outerW, height: dev.outerH, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-              <div style={{ ...accentVars, position: 'relative' }} data-device={device}>
-                {device === 'phone' && (
-                  <PhoneShell store={store} page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} toast={toast} />
-                )}
-                {device === 'ipad' && (
-                  <IPadFrame width={DT_DIMS.ipad.cardW} height={DT_DIMS.ipad.screenH}>
-                    <DesktopApp device="ipad" page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} toast={toast} />
-                  </IPadFrame>
-                )}
-                {device === 'laptop' && (
-                  <BrowserFrame width={DT_DIMS.laptop.cardW} height={DT_DIMS.laptop.screenH}>
-                    <DesktopApp device="laptop" page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} toast={toast} />
-                  </BrowserFrame>
-                )}
-                <Toast msg={toastMsg} />
-              </div>
-            </div>
-          </div>
+        <div style={{ ...accentVars, position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }} data-device={device}>
+          {device === 'phone'
+            ? <PhoneShell store={store} page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} toast={toast} />
+            : <DesktopApp device={device} page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} toast={toast} />}
+          <Toast msg={toastMsg} />
         </div>
+
+        <SyncBadge status={store.syncStatus} />
 
         <TweaksPanel>
           <TweakSection label="Accent" />
