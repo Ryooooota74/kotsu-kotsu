@@ -411,6 +411,10 @@ function useStoreProvider() {
         });
       });
     },
+    // remove every task for a given day
+    clearDay(key) {
+      mutate(d => { d.days[key] = []; });
+    },
     // place/unplace a task on the day timeline
     scheduleTask(key, id, start, duration) {
       mutate(d => {
@@ -1303,7 +1307,7 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
           style={{
             flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, letterSpacing: -0.1,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            textDecoration: done ? 'line-through' : 'none', textDecorationColor: 'var(--muted)',
+            textDecorationLine: done ? 'line-through' : 'none', textDecorationColor: 'var(--muted)',
             display: 'inline-flex', alignItems: 'center', gap: 8,
             cursor: onLongPress ? 'pointer' : 'default',
             WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
@@ -1362,6 +1366,27 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
         </div>
       )}
     </div>
+  );
+}
+
+// ── Confirm sheet (destructive actions) ───────────────────────
+function ConfirmSheet({ open, title, message, confirmLabel, onConfirm, onClose }) {
+  return (
+    <Sheet open={open} onClose={onClose} maxWidth={460}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 18px 10px' }}>
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.3 }}>{title}</span>
+        <IconBtn onClick={onClose} title="Close"><IconClose size={18} /></IconBtn>
+      </div>
+      <div style={{ padding: '0 18px 18px' }}>
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, marginBottom: 16 }}>{message}</div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
+          <Btn variant="primary" onClick={onConfirm} style={{ flex: 2, background: '#e5484d' }}>
+            <IconTrash size={15} /> {confirmLabel || 'Delete'}
+          </Btn>
+        </div>
+      </div>
+    </Sheet>
   );
 }
 
@@ -1637,6 +1662,7 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
   const [manageOpen, setManageOpen] = React.useState(false);
   const [actionCat, setActionCat] = React.useState(null);
   const [actionTask, setActionTask] = React.useState(null);
+  const [confirmClear, setConfirmClear] = React.useState(false);
   const all = data.days[dkey] || [];
   const isAll = cat === 'all';
   const counts = React.useMemo(() => {
@@ -1662,6 +1688,7 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
             { label: 'Apply group', icon: <IconPlus size={16} />, onClick: () => onApplyGroup() },
             { label: 'Manage categories', icon: <IconPencil size={16} />, onClick: () => setManageOpen(true) },
             { label: 'Reset day', icon: <IconReset size={16} />, onClick: () => actions.resetDay(dkey), sep: true },
+            { label: 'Delete all tasks', icon: <IconTrash size={16} />, onClick: () => setConfirmClear(true), danger: true },
           ]} />
         } />
         <DateNav dkey={dkey} setDkey={setDkey} recordKeys={recordKeys} />
@@ -1702,6 +1729,10 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
         onManageAll={() => { setActionCat(null); setManageOpen(true); }} />
       <TaskActionSheet open={!!actionTask} taskId={actionTask} dkey={dkey}
         onClose={() => setActionTask(null)} onEdit={(id) => onEditTask(id)} />
+      <ConfirmSheet open={confirmClear} title="Delete all tasks"
+        message={`Delete all ${all.length} task${all.length === 1 ? '' : 's'} for this day? This can’t be undone.`}
+        confirmLabel="Delete all" onConfirm={() => { actions.clearDay(dkey); setConfirmClear(false); }}
+        onClose={() => setConfirmClear(false)} />
     </div>
   );
 }
@@ -1723,7 +1754,7 @@ function EmptyTasks({ onAdd, onApplyGroup }) {
   );
 }
 
-Object.assign(window, { TasksPage, CalendarPopover, SortableTaskList, DateNav, HeaderMenu, TaskCard, TaskActionSheet, EmptyTasks });
+Object.assign(window, { TasksPage, CalendarPopover, SortableTaskList, DateNav, HeaderMenu, TaskCard, TaskActionSheet, ConfirmSheet, EmptyTasks });
 
 // ===================== daytimeline.jsx =====================
 // daytimeline.jsx — single-day hour-by-hour timeline (0–24h).
@@ -3102,6 +3133,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
   const all = data.days[dkey] || [];
+  const [confirmClear, setConfirmClear] = React.useState(false);
   const isAll = cat === 'all';
   const catObj = isAll ? null : (cats.find(c => c.id === cat) || null);
   const d = parseKey(dkey);
@@ -3139,6 +3171,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
             { label: 'Apply group', icon: <IconPlus size={16} />, onClick: onApplyGroup },
             { label: 'Manage lists', icon: <IconPencil size={16} />, onClick: onManage },
             { label: 'Reset day', icon: <IconReset size={16} />, onClick: onResetDay, sep: true },
+            { label: 'Delete all tasks', icon: <IconTrash size={16} />, onClick: () => setConfirmClear(true), danger: true },
           ]} />
         </div>
       </div>
@@ -3178,6 +3211,11 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
           </div>
         </div>
       </div>
+
+      <ConfirmSheet open={confirmClear} title="Delete all tasks"
+        message={`Delete all ${all.length} task${all.length === 1 ? '' : 's'} for this day? This can’t be undone.`}
+        confirmLabel="Delete all" onConfirm={() => { actions.clearDay(dkey); setConfirmClear(false); }}
+        onClose={() => setConfirmClear(false)} />
     </div>
   );
 }
