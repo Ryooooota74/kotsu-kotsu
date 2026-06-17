@@ -4565,5 +4565,39 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
+
+  <script>
+    /* Native spell-check / autocorrect on text fields (no API). Covers inputs that
+       React mounts later, and skips non-text inputs like the color picker. */
+    (function () {
+      var SKIP = ['checkbox','radio','color','range','file','date','time','number','hidden'];
+      function enhance(el) {
+        if (!el || el.nodeType !== 1 || el.dataset.scEnhanced) return;
+        var tag = el.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+        var t = (el.getAttribute('type') || 'text').toLowerCase();
+        if (tag === 'INPUT' && SKIP.indexOf(t) !== -1) return;
+        el.dataset.scEnhanced = '1';
+        el.setAttribute('spellcheck', 'true');
+        el.setAttribute('autocorrect', 'on');
+        el.setAttribute('autocapitalize', 'sentences');
+      }
+      function scan(root) {
+        if (root && root.querySelectorAll) root.querySelectorAll('input, textarea').forEach(enhance);
+      }
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var added = muts[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            var n = added[j];
+            if (n.nodeType !== 1) continue;
+            enhance(n); scan(n);
+          }
+        }
+      }).observe(document.documentElement, { childList: true, subtree: true });
+      document.addEventListener('focusin', function (e) { enhance(e.target); });
+      scan(document);
+    })();
+  </script>
 </body>
 </html>
