@@ -2532,13 +2532,14 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
   const info = dueInfo(todo.due);
   // optional category color-coding on the drag handle (falls back to the neutral grip)
   const catColor = todo.category ? getCat(data, todo.category).color : null;
+  const cardBorder = dragging ? 'var(--accent)' : (catColor || 'var(--border)');
+  const bw = catColor ? 1.5 : 1;
   return (
     <div className="task-card" style={{
-      border: '1px solid var(--border)', borderRadius: 8, padding: '9px 13px',
-      borderLeft: info.tone === 'over' ? '3px solid #e5484d' : '1px solid var(--border)',
-      background: 'var(--bg)',
+      borderRadius: 8, padding: '9px 13px', background: 'var(--bg)',
+      border: `${bw}px solid ${cardBorder}`,
+      borderLeft: (!catColor && info.tone === 'over') ? '3px solid #e5484d' : `${bw}px solid ${cardBorder}`,
       boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.14)' : 'none',
-      borderColor: dragging ? 'var(--accent)' : 'var(--border)',
       transition: 'box-shadow .14s, border-color .14s',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
@@ -2551,12 +2552,7 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
             <IconGrip size={16} />
           </span>
         )}
-        <div style={{ minWidth: 0, flex: 1, fontSize: 14, fontWeight: 600, letterSpacing: -0.2, lineHeight: 1.3 }}>
-          <span style={catColor ? {
-            textDecoration: 'underline', textDecorationColor: catColor,
-            textDecorationThickness: 2, textUnderlineOffset: 3,
-          } : undefined}>{todo.title}</span>
-        </div>
+        <div style={{ minWidth: 0, flex: 1, fontSize: 14, fontWeight: 600, letterSpacing: -0.2, lineHeight: 1.3 }}>{todo.title}</div>
         <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
           <IconBtn className="del-btn" size={26} onClick={() => onEdit(todo)} title="Edit"><IconPencil size={16} /></IconBtn>
           <IconBtn className="del-btn" size={26} danger onClick={() => actions.deleteTodo(todo.id)} title="Delete"><IconTrash size={16} /></IconBtn>
