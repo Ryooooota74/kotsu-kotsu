@@ -2473,17 +2473,47 @@ function DuePicker({ value, onChange }) {
   );
 }
 
+// optional category picker (includes a "None" choice)
+function TodoCategoryPicker({ categories, value, onChange }) {
+  const opt = (active, color, label, onClick) => (
+    <button type="button" key={label} onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 7,
+        padding: '8px 13px', borderRadius: 999, cursor: 'pointer',
+        border: '1.5px solid ' + (active ? 'var(--accent)' : 'var(--border)'),
+        background: active ? 'var(--accent-soft)' : 'var(--bg)',
+        color: active ? 'var(--accent)' : 'var(--text2)',
+        fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
+      }}>
+      {color ? <CatDot color={color} /> : null}
+      {label}
+    </button>
+  );
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {opt(!value, null, 'None', () => onChange(null))}
+      {categories.map(c => opt(value === c.id, c.color, c.name, () => onChange(c.id)))}
+    </div>
+  );
+}
+
 // ── To-do create / edit form ──────────────────────────────────
 function TodoForm({ initial, onCancel, onSave }) {
+  const { data } = React.useContext(StoreContext);
   const [title, setTitle] = React.useState(initial?.title || '');
   const [due, setDue] = React.useState(initial?.due ?? null);
-  const save = () => { const n = title.trim(); if (!n) return; onSave({ title: n, due }); };
+  const [category, setCategory] = React.useState(initial?.category ?? null);
+  const save = () => { const n = title.trim(); if (!n) return; onSave({ title: n, due, category }); };
   return (
     <div style={{ border: '1px solid var(--border2)', borderRadius: 12, padding: 14, background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') save(); }}
         placeholder="What do you need to do?" className="inp"
         style={{ width: '100%', fontSize: 15, fontWeight: 600, padding: '10px 12px', background: 'var(--bg)' }} />
+      <div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', marginBottom: 9 }}>Category (optional)</div>
+        <TodoCategoryPicker categories={data.categories || []} value={category} onChange={setCategory} />
+      </div>
       <div>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', marginBottom: 9 }}>Due (optional)</div>
         <DuePicker value={due} onChange={setDue} />
@@ -2500,6 +2530,8 @@ function TodoForm({ initial, onCancel, onSave }) {
 function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle, dragging }) {
   const { data, actions } = React.useContext(StoreContext);
   const info = dueInfo(todo.due);
+  // optional category color-coding on the drag handle (falls back to the neutral grip)
+  const catColor = todo.category ? getCat(data, todo.category).color : null;
   return (
     <div className="task-card" style={{
       border: '1px solid var(--border)', borderRadius: 8, padding: '9px 13px',
@@ -2511,9 +2543,9 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         {dragHandle && (
-          <span onPointerDown={dragHandle} title="Drag to reorder"
+          <span onPointerDown={dragHandle} title={catColor ? getCat(data, todo.category).name + ' — drag to reorder' : 'Drag to reorder'}
             style={{
-              cursor: 'grab', color: 'var(--muted)', display: 'inline-flex', flexShrink: 0,
+              cursor: 'grab', color: catColor || 'var(--muted)', display: 'inline-flex', flexShrink: 0,
               touchAction: 'none', marginLeft: -4, marginTop: 1, padding: '2px 0',
             }}>
             <IconGrip size={16} />
@@ -2533,7 +2565,7 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
           </span>
         ) : (
           <Btn variant="accentGhost" size="sm" onClick={() => {
-            actions.addTask(todayKey, { title: todo.title, category: defaultCategoryId(data), totalBoxes: 1, fromTodoId: todo.id });
+            actions.addTask(todayKey, { title: todo.title, category: todo.category || defaultCategoryId(data), totalBoxes: 1, fromTodoId: todo.id });
             toast(`Added “${todo.title}” to today`);
           }}><IconPlus size={14} /> Add to today</Btn>
         )}
@@ -2543,7 +2575,8 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
 }
 
 // ── Sortable to-do list (pointer-based drag to reorder) ───────
-function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mode, onEdit, onCancelEdit, onSaveEdit }) {
+// columns > 1 renders a grid; hit-testing checks both axes so it works either way.
+function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mode, onEdit, onCancelEdit, onSaveEdit, columns = 1 }) {
   const [order, setOrder] = React.useState(todos);
   const [dragId, setDragId] = React.useState(null);
   const orderRef = React.useRef(todos);
@@ -2560,12 +2593,12 @@ function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mod
     setDragId(id);
     document.body.style.userSelect = 'none';
     const move = (ev) => {
-      const y = ev.clientY;
+      const x = ev.clientX, y = ev.clientY;
       let targetId = null;
       for (const [rid, el] of rowRefs.current.entries()) {
         if (!el) continue;
         const r = el.getBoundingClientRect();
-        if (y >= r.top && y <= r.bottom) { targetId = rid; break; }
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) { targetId = rid; break; }
       }
       if (targetId && targetId !== id) {
         const cur = orderRef.current;
@@ -2590,8 +2623,12 @@ function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mod
     window.addEventListener('pointerup', up);
   };
 
+  const containerStyle = columns > 1
+    ? { display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 12, alignItems: 'start' }
+    : { display: 'flex', flexDirection: 'column', gap: 8 };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={containerStyle}>
       {order.map(t => (
         <div key={t.id}
           ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
@@ -3042,11 +3079,8 @@ function DesktopTodo({ device, dkey, toast }) {
   const [mode, setMode] = React.useState(null);
   const todayKey = dateKey(new Date());
 
-  const todos = React.useMemo(() => [...(data.todos || [])].sort((a, b) => {
-    const da = dueInfo(a.due).sort, db = dueInfo(b.due).sort;
-    if (da !== db) return da - db;
-    return b.createdAt - a.createdAt;
-  }), [data.todos]);
+  // manual order: respect the stored backlog order (drag to reorder)
+  const todos = data.todos || [];
 
   const addedSet = React.useMemo(() => {
     const s = new Set();
@@ -3057,7 +3091,7 @@ function DesktopTodo({ device, dkey, toast }) {
   const cols = device === 'laptop' ? 3 : 2;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <DTPageHead title="To-do" sub="Things to do soon — sorted by deadline."
+      <DTPageHead title="To-do" sub="Things to do soon — drag the handle to reorder."
         actions={<Btn variant="primary" size="md" onClick={() => setMode('new')}><IconPlus size={15} /> New to-do</Btn>} />
       <div className="dt-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 26px 30px' }}>
         {mode === 'new' && (
@@ -3070,17 +3104,11 @@ function DesktopTodo({ device, dkey, toast }) {
             sub="Jot down errands and one-offs you need to get to — like returning a package."
             cta={<Btn variant="primary" onClick={() => setMode('new')}><IconPlus size={15} /> Add a to-do</Btn>} />
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 12, alignItems: 'start' }}>
-            {todos.map(t => (
-              mode && mode.id === t.id ? (
-                <TodoForm key={t.id} initial={t} onCancel={() => setMode(null)}
-                  onSave={(nt) => { actions.updateTodo(t.id, nt); setMode(null); toast('Updated'); }} />
-              ) : (
-                <TodoCard key={t.id} todo={t} dkey={dkey} todayKey={todayKey}
-                  addedToday={addedSet.has(t.id)} toast={toast} onEdit={(td) => setMode(td)} />
-              )
-            ))}
-          </div>
+          <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
+            addedSet={addedSet} dkey={dkey} toast={toast} mode={mode} columns={cols}
+            onEdit={(td) => setMode(td)}
+            onCancelEdit={() => setMode(null)}
+            onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
         )}
       </div>
     </div>
