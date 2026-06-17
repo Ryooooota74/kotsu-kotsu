@@ -837,7 +837,7 @@ function StickyHeader({ children }) {
   return (
     <div style={{
       position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg)',
-      paddingTop: 52, borderBottom: '1px solid var(--border)',
+      paddingTop: 'calc(10px + env(safe-area-inset-top))', borderBottom: '1px solid var(--border)',
     }}>
       {children}
     </div>
@@ -853,12 +853,8 @@ function AppHeader({ page, setPage, actions }) {
         padding: '6px 16px 10px', gap: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <span style={{
-            width: 22, height: 22, borderRadius: 7, background: 'var(--accent)',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <IconCheck size={15} sw={2.6} style={{ color: 'var(--on-accent)' }} />
-          </span>
+          <img src="icon-192.png" alt="" width={24} height={24}
+            style={{ borderRadius: 6, display: 'block', flexShrink: 0 }} />
           <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>Kotsu-Kotsu</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions}</div>
@@ -3114,12 +3110,8 @@ function DesktopSidebar({ device, page, setPage, cat, setCat, dkey, setDkey, cou
     }}>
       {/* brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px 16px' }}>
-        <span style={{
-          width: 28, height: 28, borderRadius: 9, background: 'var(--accent)',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <IconCheck size={18} sw={2.6} style={{ color: 'var(--on-accent)' }} />
-        </span>
+        <img src="icon-192.png" alt="" width={30} height={30}
+          style={{ borderRadius: 8, display: 'block', flexShrink: 0 }} />
         <div style={{ lineHeight: 1.1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>Kotsu-Kotsu</div>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>Daily planner</div>
