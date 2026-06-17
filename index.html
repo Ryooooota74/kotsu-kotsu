@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
 <title>Kotsu-Kotsu — Daily Task Manager</title>
 <link rel="icon" type="image/png" href="icon-192.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -84,6 +84,12 @@
   }
   input, textarea, [contenteditable="true"] {
     -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+  }
+
+  /* on phones, keep form fields >= 16px so iOS Safari doesn't auto-zoom (and
+     shift/cut off the sheet) when an input is focused */
+  @media (max-width: 767px) {
+    input, textarea, select { font-size: 16px !important; }
   }
 
   /* icon button hover */
