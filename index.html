@@ -1248,10 +1248,12 @@ function SubtaskRow({ sub, onChange, onDelete }) {
 }
 
 // ── Task card ─────────────────────────────────────────────────
-function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit }) {
+function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit, onLongPress }) {
   const [addingSub, setAddingSub] = React.useState(false);
   const [subText, setSubText] = React.useState('');
   const done = task.totalBoxes > 0 && task.completedCount >= task.totalBoxes;
+  // phone: long-press the title opens an action sheet (edit/delete) instead of inline buttons
+  const lp = useLongPress(onLongPress ? () => onLongPress(task.id) : undefined);
 
   const upd = (fn) => actions.updateTask(dkey, task.id, fn);
 
@@ -1287,12 +1289,15 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit 
           <IconChevron size={15} style={{ transform: task.isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
         </button>
 
-        <span style={{
-          flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, letterSpacing: -0.1,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          textDecoration: done ? 'line-through' : 'none', textDecorationColor: 'var(--muted)',
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-        }}>
+        <span {...(onLongPress ? lp : {})} title={onLongPress ? 'Hold for options' : undefined}
+          style={{
+            flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, letterSpacing: -0.1,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            textDecoration: done ? 'line-through' : 'none', textDecorationColor: 'var(--muted)',
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            cursor: onLongPress ? 'pointer' : 'default',
+            WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
+          }}>
           {catColor && <span style={{ width: 8, height: 8, borderRadius: 999, background: catColor, flexShrink: 0 }} />}
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.title}</span>
         </span>
@@ -1304,15 +1309,19 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit 
           onRemoveBox={task.totalBoxes > 1 ? () => upd(t => { t.totalBoxes -= 1; t.completedCount = Math.min(t.completedCount, t.totalBoxes); }) : null}
         />
 
-        {onEdit && (
-          <IconBtn className="del-btn" size={26} title="Edit task" onClick={() => onEdit(task.id)}>
-            <IconPencil size={15} />
-          </IconBtn>
+        {!onLongPress && (
+          <>
+            {onEdit && (
+              <IconBtn className="del-btn" size={26} title="Edit task" onClick={() => onEdit(task.id)}>
+                <IconPencil size={15} />
+              </IconBtn>
+            )}
+            <IconBtn className="del-btn" size={26} danger title="Delete task"
+              onClick={() => actions.deleteTask(dkey, task.id)}>
+              <IconClose size={15} />
+            </IconBtn>
+          </>
         )}
-        <IconBtn className="del-btn" size={26} danger title="Delete task"
-          onClick={() => actions.deleteTask(dkey, task.id)}>
-          <IconClose size={15} />
-        </IconBtn>
       </div>
 
       {/* expanded */}
@@ -1343,6 +1352,62 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit 
         </div>
       )}
     </div>
+  );
+}
+
+// ── Task action sheet (phone long-press: edit / delete) ───────
+function TaskActionSheet({ open, taskId, dkey, onClose, onEdit }) {
+  const { data, actions } = React.useContext(StoreContext);
+  const task = (data.days[dkey] || []).find(t => t.id === taskId);
+  const [confirming, setConfirming] = React.useState(false);
+  React.useEffect(() => { if (open) setConfirming(false); }, [open, taskId]);
+  if (!task) return null;
+  const cat = getCat(data, task.category);
+
+  return (
+    <Sheet open={open} onClose={onClose} maxWidth={460}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 18px 10px' }}>
+        <span style={{ width: 9, height: 9, borderRadius: 999, background: cat.color, flexShrink: 0 }} />
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.3, flex: 1, minWidth: 0,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.title}</span>
+        <IconBtn onClick={onClose} title="Close"><IconClose size={18} /></IconBtn>
+      </div>
+
+      <div style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button type="button" onClick={() => { onClose(); onEdit(task.id); }}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer',
+            padding: '13px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg)',
+            color: 'var(--text)', fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
+          }}>
+          <IconPencil size={17} /> Edit task
+        </button>
+
+        {confirming ? (
+          <div style={{ padding: '12px 13px', background: 'var(--bg2)', borderRadius: 10 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)', marginBottom: 11, lineHeight: 1.45 }}>
+              Delete “{task.title}”? This can’t be undone.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn variant="ghost" size="sm" onClick={() => setConfirming(false)}>Cancel</Btn>
+              <Btn variant="primary" size="sm" style={{ background: '#e5484d' }}
+                onClick={() => { actions.deleteTask(dkey, task.id); onClose(); }}>
+                <IconTrash size={14} /> Delete
+              </Btn>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setConfirming(true)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer',
+              padding: '13px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg)',
+              color: '#e5484d', fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
+            }}>
+            <IconTrash size={17} /> Delete task
+          </button>
+        )}
+      </div>
+    </Sheet>
   );
 }
 
@@ -1455,7 +1520,7 @@ function DateNav({ dkey, setDkey, recordKeys }) {
 }
 
 // ── Sortable task list (pointer-based drag to reorder) ────────
-function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask }) {
+function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLongPressTask }) {
   const [order, setOrder] = React.useState(tasks);
   const [dragId, setDragId] = React.useState(null);
   const orderRef = React.useRef(tasks);
@@ -1510,7 +1575,7 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask }) {
           ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
           <TaskCard task={t} dkey={dkey} actions={actions}
             catColor={isAll ? getCat(data, t.category).color : null}
-            dragHandle={startDrag(t.id)} dragging={dragId === t.id} onEdit={onEditTask} />
+            dragHandle={startDrag(t.id)} dragging={dragId === t.id} onEdit={onEditTask} onLongPress={onLongPressTask} />
         </div>
       ))}
     </div>
@@ -1561,6 +1626,7 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
   const [cat, setCat] = React.useState(() => (cats[0] ? cats[0].id : 'all'));
   const [manageOpen, setManageOpen] = React.useState(false);
   const [actionCat, setActionCat] = React.useState(null);
+  const [actionTask, setActionTask] = React.useState(null);
   const all = data.days[dkey] || [];
   const isAll = cat === 'all';
   const counts = React.useMemo(() => {
@@ -1614,7 +1680,8 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
           {shown.length === 0 ? (
             <EmptyTasks onAdd={() => onAdd(isAll ? null : cat)} onApplyGroup={onApplyGroup} />
           ) : (
-            <SortableTaskList tasks={shown} dkey={dkey} actions={actions} isAll={isAll} data={data} onEditTask={onEditTask} />
+            <SortableTaskList tasks={shown} dkey={dkey} actions={actions} isAll={isAll} data={data}
+              onEditTask={onEditTask} onLongPressTask={(id) => setActionTask(id)} />
           )}
         </div>
       </div>
@@ -1623,6 +1690,8 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
       <CategoryActionSheet open={!!actionCat} catId={actionCat}
         onClose={() => setActionCat(null)}
         onManageAll={() => { setActionCat(null); setManageOpen(true); }} />
+      <TaskActionSheet open={!!actionTask} taskId={actionTask} dkey={dkey}
+        onClose={() => setActionTask(null)} onEdit={(id) => onEditTask(id)} />
     </div>
   );
 }
@@ -1644,7 +1713,7 @@ function EmptyTasks({ onAdd, onApplyGroup }) {
   );
 }
 
-Object.assign(window, { TasksPage, CalendarPopover, SortableTaskList, DateNav, HeaderMenu, TaskCard, EmptyTasks });
+Object.assign(window, { TasksPage, CalendarPopover, SortableTaskList, DateNav, HeaderMenu, TaskCard, TaskActionSheet, EmptyTasks });
 
 // ===================== daytimeline.jsx =====================
 // daytimeline.jsx — single-day hour-by-hour timeline (0–24h).
