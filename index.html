@@ -318,8 +318,9 @@ function useStoreProvider() {
 
   // pull from the cloud; remote is authoritative when it's newer than our local copy
   const pull = React.useCallback(async () => {
-    if (!SYNC_ENABLED) return;
+    if (!SYNC_ENABLED) return { ok: false, changed: false };
     setSyncStatus('connecting');
+    let changed = false;
     try {
       const { data: row, error } = await sbClient()
         .from(SYNC_TABLE).select('data, updated_at').eq('id', SYNC_ROW).maybeSingle();
@@ -327,16 +328,19 @@ function useStoreProvider() {
       if (row && row.data) {
         const localRev = Number(localStorage.getItem(REV_KEY) || 0);
         const remoteRev = new Date(row.updated_at).getTime();
-        if (remoteRev >= localRev) {
+        if (remoteRev > localRev) {
           applyingRemoteRef.current = true;
           setData(row.data);
+          changed = true;
           try { localStorage.setItem(REV_KEY, String(remoteRev)); } catch (e) {}
         }
       }
       setSyncStatus('synced');
+      return { ok: true, changed };
     } catch (e) {
       console.warn('[sync] pull failed', e && e.message);
       setSyncStatus('error');
+      return { ok: false, changed: false };
     } finally {
       hydratedRef.current = true;
     }
@@ -4464,13 +4468,13 @@ function SyncBadge({ status, onRefresh }) {
         ? 'Could not reach the cloud — tap to retry. Changes are saved locally.'
         : 'Tap to refresh with the latest from your other devices'}
       style={{
-        position: 'fixed', left: 14, bottom: 'calc(14px + env(safe-area-inset-bottom))', zIndex: 300,
-        display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px',
-        borderRadius: 999, background: 'rgba(255,255,255,0.85)', border: 'none',
+        position: 'fixed', left: 14, bottom: 'calc(28px + env(safe-area-inset-bottom))', zIndex: 300,
+        display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 14px',
+        borderRadius: 999, background: 'rgba(255,255,255,0.9)', border: 'none',
         backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-        boxShadow: '0 6px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)',
+        boxShadow: '0 6px 24px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.05)',
         fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text2)', letterSpacing: -0.1,
-        cursor: busy ? 'default' : 'pointer', WebkitTapHighlightColor: 'transparent',
+        cursor: busy ? 'default' : 'pointer', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
       }}>
       <span style={{ width: 8, height: 8, borderRadius: 999, background: s.dot, flexShrink: 0 }} />
       {s.label}
@@ -4539,6 +4543,13 @@ function App() {
     toastTimer.current = setTimeout(() => setToastMsg(''), 1900);
   }, []);
 
+  // tap the sync badge → pull latest and confirm with a toast
+  const handleRefresh = React.useCallback(async () => {
+    const r = await store.refresh();
+    if (!r) return;
+    toast(r.ok ? (r.changed ? 'Updated from the cloud' : 'Already up to date') : 'Couldn’t refresh — check your connection');
+  }, [store, toast]);
+
   const accentVars = {
     '--accent': t.accent,
     '--accent-soft': `color-mix(in srgb, ${t.accent} 13%, #fff)`,
@@ -4554,7 +4565,7 @@ function App() {
           <Toast msg={toastMsg} />
         </div>
 
-        <SyncBadge status={store.syncStatus} onRefresh={store.refresh} />
+        <SyncBadge status={store.syncStatus} onRefresh={handleRefresh} />
 
         <TweaksPanel>
           <TweakSection label="Accent" />
