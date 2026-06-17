@@ -1248,7 +1248,7 @@ function SubtaskRow({ sub, onChange, onDelete }) {
 }
 
 // ── Task card ─────────────────────────────────────────────────
-function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging }) {
+function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit }) {
   const [addingSub, setAddingSub] = React.useState(false);
   const [subText, setSubText] = React.useState('');
   const done = task.totalBoxes > 0 && task.completedCount >= task.totalBoxes;
@@ -1304,6 +1304,11 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging }) {
           onRemoveBox={task.totalBoxes > 1 ? () => upd(t => { t.totalBoxes -= 1; t.completedCount = Math.min(t.completedCount, t.totalBoxes); }) : null}
         />
 
+        {onEdit && (
+          <IconBtn className="del-btn" size={26} title="Edit task" onClick={() => onEdit(task.id)}>
+            <IconPencil size={15} />
+          </IconBtn>
+        )}
         <IconBtn className="del-btn" size={26} danger title="Delete task"
           onClick={() => actions.deleteTask(dkey, task.id)}>
           <IconClose size={15} />
@@ -1450,7 +1455,7 @@ function DateNav({ dkey, setDkey, recordKeys }) {
 }
 
 // ── Sortable task list (pointer-based drag to reorder) ────────
-function SortableTaskList({ tasks, dkey, actions, isAll, data }) {
+function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask }) {
   const [order, setOrder] = React.useState(tasks);
   const [dragId, setDragId] = React.useState(null);
   const orderRef = React.useRef(tasks);
@@ -1505,7 +1510,7 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data }) {
           ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
           <TaskCard task={t} dkey={dkey} actions={actions}
             catColor={isAll ? getCat(data, t.category).color : null}
-            dragHandle={startDrag(t.id)} dragging={dragId === t.id} />
+            dragHandle={startDrag(t.id)} dragging={dragId === t.id} onEdit={onEditTask} />
         </div>
       ))}
     </div>
@@ -1550,7 +1555,7 @@ function HeaderMenu({ items }) {
 }
 
 // ── Tasks page ────────────────────────────────────────────────
-function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup }) {
+function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTask }) {
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
   const [cat, setCat] = React.useState(() => (cats[0] ? cats[0].id : 'all'));
@@ -1609,7 +1614,7 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup }) {
           {shown.length === 0 ? (
             <EmptyTasks onAdd={() => onAdd(isAll ? null : cat)} onApplyGroup={onApplyGroup} />
           ) : (
-            <SortableTaskList tasks={shown} dkey={dkey} actions={actions} isAll={isAll} data={data} />
+            <SortableTaskList tasks={shown} dkey={dkey} actions={actions} isAll={isAll} data={data} onEditTask={onEditTask} />
           )}
         </div>
       </div>
@@ -2231,9 +2236,10 @@ function FieldLabel({ children }) {
   return <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>{children}</div>;
 }
 
-function AddTaskModal({ open, onClose, dkey, defaultCat }) {
+function AddTaskModal({ open, onClose, dkey, defaultCat, editId }) {
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
+  const editing = editId ? (data.days[dkey] || []).find(t => t.id === editId) : null;
   const initialCat = defaultCat || defaultCategoryId(data);
   const [title, setTitle] = React.useState('');
   const [cat, setCat] = React.useState(initialCat);
@@ -2242,8 +2248,15 @@ function AddTaskModal({ open, onClose, dkey, defaultCat }) {
   const [usedTodo, setUsedTodo] = React.useState(null);
 
   React.useEffect(() => {
-    if (open) { setTitle(''); setCat(defaultCat || defaultCategoryId(data)); setBoxes(1); setSubs([]); setUsedTodo(null); }
-  }, [open, defaultCat]);
+    if (!open) return;
+    if (editing) {
+      setTitle(editing.title); setCat(editing.category); setBoxes(editing.totalBoxes);
+      setSubs((editing.subtasks || []).map(s => ({ id: s.id, title: s.title, totalBoxes: s.totalBoxes })));
+      setUsedTodo(null);
+    } else {
+      setTitle(''); setCat(defaultCat || defaultCategoryId(data)); setBoxes(1); setSubs([]); setUsedTodo(null);
+    }
+  }, [open, editId, defaultCat]);
 
   const fillFromTodo = (td) => {
     setTitle(td.title); setUsedTodo(td.id);
@@ -2256,11 +2269,27 @@ function AddTaskModal({ open, onClose, dkey, defaultCat }) {
   const submit = () => {
     const name = title.trim();
     if (!name) return;
-    actions.addTask(dkey, {
-      title: name, category: cat, totalBoxes: boxes,
-      subtasks: subs.filter(s => s.title.trim()).map(s => ({ title: s.title.trim(), totalBoxes: s.totalBoxes })),
-      fromTodoId: usedTodo || undefined,
-    });
+    const cleanSubs = subs.filter(s => s.title.trim());
+    if (editing) {
+      // edit existing task in place, preserving per-box / subtask progress
+      actions.updateTask(dkey, editId, t => {
+        t.title = name; t.category = cat; t.totalBoxes = boxes;
+        if (t.completedCount > boxes) t.completedCount = boxes;
+        const prevById = new Map((t.subtasks || []).map(s => [s.id, s]));
+        t.subtasks = cleanSubs.map(s => {
+          const tb = s.totalBoxes || 1;
+          const prev = prevById.get(s.id);
+          return { id: s.id || uid(), title: s.title.trim(), totalBoxes: tb,
+            completedCount: prev ? Math.min(prev.completedCount, tb) : 0 };
+        });
+      });
+    } else {
+      actions.addTask(dkey, {
+        title: name, category: cat, totalBoxes: boxes,
+        subtasks: cleanSubs.map(s => ({ title: s.title.trim(), totalBoxes: s.totalBoxes })),
+        fromTodoId: usedTodo || undefined,
+      });
+    }
     onClose();
   };
 
@@ -2270,13 +2299,13 @@ function AddTaskModal({ open, onClose, dkey, defaultCat }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '6px 18px 12px', flexShrink: 0,
       }}>
-        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3 }}>New task</span>
+        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3 }}>{editing ? 'Edit task' : 'New task'}</span>
         <IconBtn onClick={onClose} title="Close"><IconClose size={18} /></IconBtn>
       </div>
 
       <div style={{ overflow: 'auto', padding: '0 18px 4px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         {/* from to-do */}
-        {(data.todos || []).length > 0 && (
+        {!editing && (data.todos || []).length > 0 && (
           <div>
             <FieldLabel>From To-do</FieldLabel>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -2px' }}>
@@ -2341,7 +2370,7 @@ function AddTaskModal({ open, onClose, dkey, defaultCat }) {
       {/* footer */}
       <div style={{ display: 'flex', gap: 10, padding: '14px 18px 18px', flexShrink: 0 }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-        <Btn variant="primary" onClick={submit} disabled={!title.trim()} style={{ flex: 2 }}>Add task</Btn>
+        <Btn variant="primary" onClick={submit} disabled={!title.trim()} style={{ flex: 2 }}>{editing ? 'Save' : 'Add task'}</Btn>
       </div>
     </Sheet>
   );
@@ -2989,7 +3018,7 @@ function DTPageHead({ title, sub, actions }) {
 }
 
 // ── Tasks (list + schedule) ───────────────────────────────────
-function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, onApplyGroup, onManage, onResetDay, onEditEvent, onEditTask, onNewEvent }) {
+function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, onApplyGroup, onManage, onResetDay, onEditEvent, onEditTask, onEditCard, onNewEvent }) {
   const dim = DT_DIMS[device];
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
@@ -3050,7 +3079,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
               {shown.length === 0 ? (
                 <EmptyTasks onAdd={() => onAdd(isAll ? null : cat)} onApplyGroup={onApplyGroup} />
               ) : (
-                <SortableTaskList tasks={shown} dkey={dkey} actions={actions} isAll={isAll} data={data} />
+                <SortableTaskList tasks={shown} dkey={dkey} actions={actions} isAll={isAll} data={data} onEditTask={onEditCard} />
               )}
             </div>
           </div>
@@ -3213,6 +3242,7 @@ function DesktopApp({ device, page, setPage, dkey, setDkey, toast }) {
   const [cat, setCat] = React.useState('all');
   const [addOpen, setAddOpen] = React.useState(false);
   const [addCat, setAddCat] = React.useState(null);
+  const [editId, setEditId] = React.useState(null);
   const [applyOpen, setApplyOpen] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
   const [evSheet, setEvSheet] = React.useState(null);
@@ -3243,7 +3273,7 @@ function DesktopApp({ device, page, setPage, dkey, setDkey, toast }) {
             onAdd={(c) => { setAddCat(c || null); setAddOpen(true); }}
             onApplyGroup={() => setApplyOpen(true)} onManage={() => setManageOpen(true)}
             onResetDay={() => actions.resetDay(dkey)}
-            onEditEvent={(id) => setEvSheet(id)} onEditTask={(id) => setTaskSheet(id)} onNewEvent={() => setEvSheet('new')} />
+            onEditEvent={(id) => setEvSheet(id)} onEditTask={(id) => setTaskSheet(id)} onEditCard={(id) => setEditId(id)} onNewEvent={() => setEvSheet('new')} />
         )}
         {page === 'todo' && <DesktopTodo device={device} dkey={dkey} toast={toast} />}
         {page === 'calendar' && (
@@ -3254,6 +3284,7 @@ function DesktopApp({ device, page, setPage, dkey, setDkey, toast }) {
       </div>
 
       <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} />
+      <AddTaskModal open={!!editId} editId={editId} onClose={() => setEditId(null)} dkey={dkey} />
       <ApplyGroupSheet open={applyOpen} onClose={() => setApplyOpen(false)} dkey={dkey} />
       <ManageCategoriesSheet open={manageOpen} onClose={() => setManageOpen(false)} />
       <EventEditorSheet open={!!evSheet} eventId={evSheet} dkey={dkey} onClose={() => setEvSheet(null)} />
@@ -4281,6 +4312,7 @@ function SyncBadge({ status }) {
 function PhoneShell({ store, page, setPage, dkey, setDkey, toast }) {
   const [addOpen, setAddOpen] = React.useState(false);
   const [addCat, setAddCat] = React.useState(null);
+  const [editId, setEditId] = React.useState(null);
   const [applyOpen, setApplyOpen] = React.useState(false);
 
   return (
@@ -4288,7 +4320,8 @@ function PhoneShell({ store, page, setPage, dkey, setDkey, toast }) {
       <div className="scrollarea" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
         {page === 'tasks' && (
           <TasksPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey}
-            onAdd={(c) => { setAddCat(c || null); setAddOpen(true); }} onApplyGroup={() => setApplyOpen(true)} />
+            onAdd={(c) => { setAddCat(c || null); setAddOpen(true); }} onApplyGroup={() => setApplyOpen(true)}
+            onEditTask={(id) => setEditId(id)} />
         )}
         {page === 'todo' && <TodoPage page={page} setPage={setPage} dkey={dkey} toast={toast} />}
         {page === 'calendar' && <CalendarPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} />}
@@ -4296,6 +4329,7 @@ function PhoneShell({ store, page, setPage, dkey, setDkey, toast }) {
       </div>
 
       <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} />
+      <AddTaskModal open={!!editId} editId={editId} onClose={() => setEditId(null)} dkey={dkey} />
       <ApplyGroupSheet open={applyOpen} onClose={() => setApplyOpen(false)} dkey={dkey} />
 
       {page === 'tasks' && (
