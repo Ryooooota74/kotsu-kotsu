@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
+<script>window.__BUILD='1781695684';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -4575,6 +4576,29 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+
+  <script>
+    /* Auto-update: GitHub Pages caches the HTML for ~10 min, so phones (and the
+       home-screen app) can show a stale build. Shortly after load, fetch the live
+       page uncached; if the build id changed, reload to pick it up. Guarded so it
+       can only reload once per new build per session (no loops). */
+    (function () {
+      var BUILD = window.__BUILD;
+      if (!BUILD || /[^0-9]/.test(BUILD) || location.protocol === 'file:') return;
+      setTimeout(function () {
+        fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.text() : null; })
+          .then(function (html) {
+            if (!html) return;
+            var m = html.match(/__BUILD='(\d+)'/);
+            if (m && m[1] !== BUILD && sessionStorage.getItem('kotsuUpd') !== m[1]) {
+              sessionStorage.setItem('kotsuUpd', m[1]);
+              location.reload();
+            }
+          })['catch'](function () {});
+      }, 1500);
+    })();
   </script>
 
   <script>
