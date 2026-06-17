@@ -69,12 +69,15 @@
   .del-btn { opacity: 0; transition: opacity .14s, background .14s, color .14s; }
   .task-card:hover .del-btn { opacity: 1; }
 
-  /* stop iOS long-press from selecting task text (so long-press opens our menu) */
-  .task-card {
+  /* app-like UI: disable text selection / long-press callout everywhere except
+     real form fields, so long-press opens our menus instead of selecting text (iOS) */
+  body {
     -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
     -webkit-touch-callout: none;
   }
-  .task-card input, .task-card textarea { -webkit-user-select: text; user-select: text; }
+  input, textarea, [contenteditable="true"] {
+    -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+  }
 
   /* icon button hover */
   .iconbtn:hover { background: var(--bg3); color: var(--text); }
