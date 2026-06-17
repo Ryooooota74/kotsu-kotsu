@@ -117,6 +117,7 @@
   .dt-mini-month > div { padding: 0 !important; }
 
   @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
   textarea.inp { line-height: 1.45; }
 </style>
@@ -315,34 +316,34 @@ function useStoreProvider() {
   const applyingRemoteRef = React.useRef(false);   // skip the push triggered by an incoming pull
   const pushTimer = React.useRef(null);
 
-  // initial pull: remote is authoritative when it's newer than our local copy
-  React.useEffect(() => {
+  // pull from the cloud; remote is authoritative when it's newer than our local copy
+  const pull = React.useCallback(async () => {
     if (!SYNC_ENABLED) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data: row, error } = await sbClient()
-          .from(SYNC_TABLE).select('data, updated_at').eq('id', SYNC_ROW).maybeSingle();
-        if (error) throw error;
-        if (!cancelled && row && row.data) {
-          const localRev = Number(localStorage.getItem(REV_KEY) || 0);
-          const remoteRev = new Date(row.updated_at).getTime();
-          if (remoteRev >= localRev) {
-            applyingRemoteRef.current = true;
-            setData(row.data);
-            try { localStorage.setItem(REV_KEY, String(remoteRev)); } catch (e) {}
-          }
+    setSyncStatus('connecting');
+    try {
+      const { data: row, error } = await sbClient()
+        .from(SYNC_TABLE).select('data, updated_at').eq('id', SYNC_ROW).maybeSingle();
+      if (error) throw error;
+      if (row && row.data) {
+        const localRev = Number(localStorage.getItem(REV_KEY) || 0);
+        const remoteRev = new Date(row.updated_at).getTime();
+        if (remoteRev >= localRev) {
+          applyingRemoteRef.current = true;
+          setData(row.data);
+          try { localStorage.setItem(REV_KEY, String(remoteRev)); } catch (e) {}
         }
-        if (!cancelled) setSyncStatus('synced');
-      } catch (e) {
-        console.warn('[sync] pull failed', e && e.message);
-        if (!cancelled) setSyncStatus('error');
-      } finally {
-        hydratedRef.current = true;
       }
-    })();
-    return () => { cancelled = true; };
+      setSyncStatus('synced');
+    } catch (e) {
+      console.warn('[sync] pull failed', e && e.message);
+      setSyncStatus('error');
+    } finally {
+      hydratedRef.current = true;
+    }
   }, []);
+
+  // initial pull on mount
+  React.useEffect(() => { pull(); }, [pull]);
 
   // persist to localStorage always; debounce-push to the cloud once hydrated
   React.useEffect(() => {
@@ -491,7 +492,7 @@ function useStoreProvider() {
     },
   }), [data, mutate]);
 
-  return { data, actions, syncStatus, syncEnabled: SYNC_ENABLED };
+  return { data, actions, syncStatus, syncEnabled: SYNC_ENABLED, refresh: pull };
 }
 
 // usage count for a category across all stored days
@@ -4446,28 +4447,35 @@ function Toast({ msg }) {
   );
 }
 
-// tiny cloud-sync status badge (only shown when sync is configured)
-function SyncBadge({ status }) {
+// tiny cloud-sync status badge (only shown when sync is configured) — tap to refresh
+function SyncBadge({ status, onRefresh }) {
   if (!status || status === 'off') return null;
   const map = {
-    connecting: { dot: 'var(--muted)', label: 'Connecting…' },
+    connecting: { dot: 'var(--muted)', label: 'Refreshing…' },
     saving:     { dot: '#f08c00',      label: 'Saving…' },
     synced:     { dot: '#0f9d6b',      label: 'Synced' },
     error:      { dot: '#e5484d',      label: 'Offline' },
   };
   const s = map[status] || map.connecting;
+  const busy = status === 'connecting';
   return (
-    <div style={{
-      position: 'fixed', left: 14, bottom: 'calc(14px + env(safe-area-inset-bottom))', zIndex: 300,
-      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px',
-      borderRadius: 999, background: 'rgba(255,255,255,0.85)',
-      backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      boxShadow: '0 6px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)',
-      fontSize: 12, fontWeight: 600, color: 'var(--text2)', letterSpacing: -0.1,
-    }} title={status === 'error' ? 'Could not reach the cloud — changes are saved locally and will sync when reconnected.' : 'Data syncs across your devices'}>
+    <button type="button" onClick={() => { if (!busy && onRefresh) onRefresh(); }} disabled={busy}
+      title={status === 'error'
+        ? 'Could not reach the cloud — tap to retry. Changes are saved locally.'
+        : 'Tap to refresh with the latest from your other devices'}
+      style={{
+        position: 'fixed', left: 14, bottom: 'calc(14px + env(safe-area-inset-bottom))', zIndex: 300,
+        display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px',
+        borderRadius: 999, background: 'rgba(255,255,255,0.85)', border: 'none',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        boxShadow: '0 6px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)',
+        fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text2)', letterSpacing: -0.1,
+        cursor: busy ? 'default' : 'pointer', WebkitTapHighlightColor: 'transparent',
+      }}>
       <span style={{ width: 8, height: 8, borderRadius: 999, background: s.dot, flexShrink: 0 }} />
       {s.label}
-    </div>
+      <IconReset size={13} style={{ color: 'var(--muted)', marginLeft: 1, animation: busy ? 'spin 0.8s linear infinite' : 'none' }} />
+    </button>
   );
 }
 
@@ -4546,7 +4554,7 @@ function App() {
           <Toast msg={toastMsg} />
         </div>
 
-        <SyncBadge status={store.syncStatus} />
+        <SyncBadge status={store.syncStatus} onRefresh={store.refresh} />
 
         <TweaksPanel>
           <TweakSection label="Accent" />
