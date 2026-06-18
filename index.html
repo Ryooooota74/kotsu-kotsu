@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781741183';</script>
+<script>window.__BUILD='1781741542';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1292,13 +1292,14 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
     setSubText(''); setAddingSub(false);
   };
 
-  // category color shows on the card frame (instead of a dot) to save space
-  const cardBorder = dragging ? 'var(--accent)' : (catColor || 'var(--border)');
-  const bw = catColor ? 1.5 : 1;
+  // category color shows on the card frame (instead of a dot) to save space;
+  // completed tasks are filled with a muted gray so "done" reads at a glance
+  const cardBorder = dragging ? 'var(--accent)' : (done ? '#d2d2d6' : (catColor || 'var(--border)'));
+  const bw = (catColor && !done) ? 1.5 : 1;
   return (
     <div className="task-card" style={{
-      background: 'var(--bg)', borderRadius: 8, border: `${bw}px solid ${cardBorder}`,
-      padding: '7px 12px', opacity: done && !dragging ? 0.55 : 1, transition: 'opacity .18s, box-shadow .14s, border-color .14s',
+      background: done ? '#e7e7ea' : 'var(--bg)', borderRadius: 8, border: `${bw}px solid ${cardBorder}`,
+      padding: '7px 12px', transition: 'background .18s, box-shadow .14s, border-color .14s',
       boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.14)' : 'none',
     }}>
       {/* main row */}
@@ -1324,6 +1325,7 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
           style={{
             flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, letterSpacing: -0.1,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            color: done ? 'var(--muted)' : 'inherit',
             textDecorationLine: done ? 'line-through' : 'none', textDecorationColor: 'var(--muted)',
             cursor: onLongPress ? 'pointer' : 'default',
             WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
