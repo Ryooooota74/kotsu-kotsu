@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781765212';</script>
+<script>window.__BUILD='1781824499';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1579,7 +1579,11 @@ function DateNav({ dkey, setDkey, recordKeys }) {
 function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLongPressTask }) {
   const [order, setOrder] = React.useState(tasks);
   const [dragId, setDragId] = React.useState(null);
-  const [collapsed, setCollapsed] = React.useState({});
+  // collapsed group ids persist across page changes and reloads
+  const [collapsed, setCollapsed] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('taskmgr_collapsed') || '{}') || {}; } catch (e) { return {}; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('taskmgr_collapsed', JSON.stringify(collapsed)); } catch (e) {} }, [collapsed]);
   const [confirmGroup, setConfirmGroup] = React.useState(null);
   const orderRef = React.useRef(tasks);
   const rowRefs = React.useRef(new Map());
@@ -4619,7 +4623,11 @@ function App() {
   const store = useStoreProvider();
   const device = useViewport();
 
-  const [page, setPage] = React.useState('tasks');
+  // remember the current page across reloads (and auto-update reloads)
+  const [page, setPage] = React.useState(() => {
+    try { const p = localStorage.getItem('taskmgr_page'); return ['tasks', 'todo', 'calendar', 'groups'].includes(p) ? p : 'tasks'; } catch (e) { return 'tasks'; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('taskmgr_page', page); } catch (e) {} }, [page]);
   const [dkey, setDkey] = React.useState(() => dateKey(new Date()));
   const [toastMsg, setToastMsg] = React.useState('');
   const toastTimer = React.useRef(null);
