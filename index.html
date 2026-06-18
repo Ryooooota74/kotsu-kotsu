@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781695684';</script>
+<script>window.__BUILD='1781741183';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1292,12 +1292,14 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
     setSubText(''); setAddingSub(false);
   };
 
+  // category color shows on the card frame (instead of a dot) to save space
+  const cardBorder = dragging ? 'var(--accent)' : (catColor || 'var(--border)');
+  const bw = catColor ? 1.5 : 1;
   return (
     <div className="task-card" style={{
-      background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
+      background: 'var(--bg)', borderRadius: 8, border: `${bw}px solid ${cardBorder}`,
       padding: '7px 12px', opacity: done && !dragging ? 0.55 : 1, transition: 'opacity .18s, box-shadow .14s, border-color .14s',
       boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.14)' : 'none',
-      borderColor: dragging ? 'var(--accent)' : 'var(--border)',
     }}>
       {/* main row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1323,12 +1325,10 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
             flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, letterSpacing: -0.1,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             textDecorationLine: done ? 'line-through' : 'none', textDecorationColor: 'var(--muted)',
-            display: 'inline-flex', alignItems: 'center', gap: 8,
             cursor: onLongPress ? 'pointer' : 'default',
             WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
           }}>
-          {catColor && <span style={{ width: 8, height: 8, borderRadius: 999, background: catColor, flexShrink: 0 }} />}
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.title}</span>
+          {task.title}
         </span>
 
         <CheckboxRow
@@ -1624,7 +1624,7 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
         <div key={t.id}
           ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
           <TaskCard task={t} dkey={dkey} actions={actions}
-            catColor={isAll ? getCat(data, t.category).color : null}
+            catColor={getCat(data, t.category).color}
             dragHandle={startDrag(t.id)} dragging={dragId === t.id} onEdit={onEditTask} onLongPress={onLongPressTask} />
         </div>
       ))}
