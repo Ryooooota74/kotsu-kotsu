@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781743562';</script>
+<script>window.__BUILD='1781761145';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -175,14 +175,14 @@ const MON_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July'
 function isSameDay(a, b) { return dateKey(a) === dateKey(b); }
 
 // ── factories ─────────────────────────────────────────────────
-function makeTask({ title, category = 'work', totalBoxes = 1, subtasks = [], fromTodoId, fromGroupId, start = null, duration = 60 }) {
+function makeTask({ title, category = 'work', totalBoxes = 1, subtasks = [], fromTodoId, fromGroupId, fromGroupName, start = null, duration = 60 }) {
   return {
     id: uid(), title, category,
     completedCount: 0, totalBoxes,
     subtasks: subtasks.map(s => ({
       id: uid(), title: s.title, completedCount: 0, totalBoxes: s.totalBoxes || 1,
     })),
-    isExpanded: false, fromTodoId, fromGroupId,
+    isExpanded: false, fromTodoId, fromGroupId, fromGroupName,
     start, duration, // start = minutes from midnight (null = unscheduled); duration in minutes
   };
 }
@@ -1575,6 +1575,7 @@ function DateNav({ dkey, setDkey, recordKeys }) {
 function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLongPressTask }) {
   const [order, setOrder] = React.useState(tasks);
   const [dragId, setDragId] = React.useState(null);
+  const [collapsed, setCollapsed] = React.useState({});
   const orderRef = React.useRef(tasks);
   const rowRefs = React.useRef(new Map());
 
@@ -1620,16 +1621,54 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
     window.addEventListener('pointerup', up);
   };
 
+  // one draggable task row (ref tracked for pointer hit-testing)
+  const taskRow = (t, plain) => (
+    <div key={t.id}
+      ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
+      <TaskCard task={t} dkey={dkey} actions={actions}
+        catColor={plain ? null : getCat(data, t.category).color}
+        dragHandle={startDrag(t.id)} dragging={dragId === t.id} onEdit={onEditTask} onLongPress={onLongPressTask} />
+    </div>
+  );
+
+  // group consecutive tasks that came from the same group into a collapsible block
+  const blocks = [];
+  for (let i = 0; i < order.length;) {
+    const t = order[i];
+    if (t.fromGroupId) {
+      const gid = t.fromGroupId, run = [];
+      while (i < order.length && order[i].fromGroupId === gid) { run.push(order[i]); i++; }
+      blocks.push({ type: 'group', gid, name: t.fromGroupName || 'Group', color: getCat(data, t.category).color, tasks: run });
+    } else { blocks.push({ type: 'task', task: t }); i++; }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {order.map(t => (
-        <div key={t.id}
-          ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
-          <TaskCard task={t} dkey={dkey} actions={actions}
-            catColor={getCat(data, t.category).color}
-            dragHandle={startDrag(t.id)} dragging={dragId === t.id} onEdit={onEditTask} onLongPress={onLongPressTask} />
-        </div>
-      ))}
+      {blocks.map(b => {
+        if (b.type === 'task') return taskRow(b.task, false);
+        const isCollapsed = !!collapsed[b.gid];
+        const doneCount = b.tasks.filter(t => t.totalBoxes > 0 && t.completedCount >= t.totalBoxes).length;
+        return (
+          <div key={'g:' + b.gid + ':' + b.tasks[0].id}
+            style={{ border: `1.5px solid ${b.color}`, borderRadius: 10, background: 'var(--bg)' }}>
+            <button type="button" onClick={() => setCollapsed(c => ({ ...c, [b.gid]: !c[b.gid] }))}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px',
+                border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              <IconChevron size={15} style={{ transform: isCollapsed ? 'none' : 'rotate(90deg)', transition: 'transform .15s', color: 'var(--muted)', flexShrink: 0 }} />
+              <span style={{ width: 9, height: 9, borderRadius: 999, background: b.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: -0.2, color: 'var(--text)', flex: 1, textAlign: 'left', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{doneCount}/{b.tasks.length}</span>
+            </button>
+            {!isCollapsed && (
+              <div style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {b.tasks.map(t => taskRow(t, true))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1687,12 +1726,8 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
     all.forEach(t => { m[t.category] = (m[t.category] || 0) + 1; });
     return m;
   }, [all]);
-  const shown = React.useMemo(() => {
-    const base = isAll ? all : all.filter(t => t.category === cat);
-    const isDone = t => t.totalBoxes > 0 && t.completedCount >= t.totalBoxes;
-    // completed tasks sink to the bottom (stable within each group)
-    return [...base].sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0));
-  }, [all, isAll, cat]);
+  // keep stored order so grouped tasks stay together (completed tasks are greyed in place)
+  const shown = React.useMemo(() => (isAll ? all : all.filter(t => t.category === cat)), [all, isAll, cat]);
   const recordKeys = React.useMemo(
     () => new Set(Object.keys(data.days).filter(k => (data.days[k] || []).length > 0)),
     [data.days]);
@@ -2512,7 +2547,7 @@ function ApplyGroupSheet({ open, onClose, dkey }) {
     actions.addTasksBulk(dkey, g.tasks.map(t => ({
       title: t.title, category: t.category, totalBoxes: t.totalBoxes,
       subtasks: (t.subtasks || []).map(s => ({ title: s.title, totalBoxes: s.totalBoxes || 1 })),
-      fromGroupId: g.id,
+      fromGroupId: g.id, fromGroupName: g.name,
     })));
     onClose();
   };
@@ -2940,7 +2975,7 @@ function GroupCard({ g, dkey, toast, onEdit }) {
         <div style={{ flex: 1 }} />
         <Btn variant="accentGhost" size="sm" onClick={() => {
           actions.addTasksBulk(dkey, g.tasks.map(t => ({ title: t.title, category: t.category, totalBoxes: t.totalBoxes,
-            subtasks: (t.subtasks || []).map(s => ({ title: s.title, totalBoxes: s.totalBoxes || 1 })), fromGroupId: g.id })));
+            subtasks: (t.subtasks || []).map(s => ({ title: s.title, totalBoxes: s.totalBoxes || 1 })), fromGroupId: g.id, fromGroupName: g.name })));
           toast(`Added ${g.tasks.length} tasks to today`);
         }}><IconPlus size={14} /> Add to today</Btn>
       </div>
@@ -3224,11 +3259,8 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
   const d = parseKey(dkey);
   const todayKey = dateKey(new Date());
 
-  const shown = React.useMemo(() => {
-    const base = isAll ? all : all.filter(t => t.category === cat);
-    const isDone = t => t.totalBoxes > 0 && t.completedCount >= t.totalBoxes;
-    return [...base].sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0));
-  }, [all, isAll, cat]);
+  // keep stored order so grouped tasks stay together (completed tasks are greyed in place)
+  const shown = React.useMemo(() => (isAll ? all : all.filter(t => t.category === cat)), [all, isAll, cat]);
 
   const dateLabel = dkey === todayKey ? 'Today' : WD_SHORT[d.getDay()];
 
