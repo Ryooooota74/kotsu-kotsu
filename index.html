@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781761145';</script>
+<script>window.__BUILD='1781761771';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1638,7 +1638,10 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
     if (t.fromGroupId) {
       const gid = t.fromGroupId, run = [];
       while (i < order.length && order[i].fromGroupId === gid) { run.push(order[i]); i++; }
-      blocks.push({ type: 'group', gid, name: t.fromGroupName || 'Group', color: getCat(data, t.category).color, tasks: run });
+      // prefer the name saved on the task; fall back to the live group, then a generic label
+      const liveName = (data.groups || []).find(g => g.id === gid);
+      const name = t.fromGroupName || (liveName && liveName.name) || 'Group';
+      blocks.push({ type: 'group', gid, name, color: getCat(data, t.category).color, tasks: run });
     } else { blocks.push({ type: 'task', task: t }); i++; }
   }
 
