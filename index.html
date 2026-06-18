@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781761771';</script>
+<script>window.__BUILD='1781763734';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -409,6 +409,10 @@ function useStoreProvider() {
     },
     deleteTask(key, id) {
       mutate(d => { d.days[key] = (d.days[key] || []).filter(x => x.id !== id); });
+    },
+    // remove every task that came from a given group from a day
+    removeGroupTasks(key, gid) {
+      mutate(d => { d.days[key] = (d.days[key] || []).filter(x => x.fromGroupId !== gid); });
     },
     // reorder the tasks whose ids appear in orderedIds, leaving any task not in
     // that list (e.g. filtered out by category) at its current array position
@@ -1576,6 +1580,7 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
   const [order, setOrder] = React.useState(tasks);
   const [dragId, setDragId] = React.useState(null);
   const [collapsed, setCollapsed] = React.useState({});
+  const [confirmGroup, setConfirmGroup] = React.useState(null);
   const orderRef = React.useRef(tasks);
   const rowRefs = React.useRef(new Map());
 
@@ -1654,16 +1659,19 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
         return (
           <div key={'g:' + b.gid + ':' + b.tasks[0].id}
             style={{ border: `1.5px solid ${b.color}`, borderRadius: 10, background: 'var(--bg)' }}>
-            <button type="button" onClick={() => setCollapsed(c => ({ ...c, [b.gid]: !c[b.gid] }))}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px',
-                border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
-              }}>
-              <IconChevron size={15} style={{ transform: isCollapsed ? 'none' : 'rotate(90deg)', transition: 'transform .15s', color: 'var(--muted)', flexShrink: 0 }} />
-              <span style={{ width: 9, height: 9, borderRadius: 999, background: b.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: -0.2, color: 'var(--text)', flex: 1, textAlign: 'left', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px 7px 11px' }}>
+              <div onClick={() => setCollapsed(c => ({ ...c, [b.gid]: !c[b.gid] }))}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                <IconChevron size={15} style={{ transform: isCollapsed ? 'none' : 'rotate(90deg)', transition: 'transform .15s', color: 'var(--muted)', flexShrink: 0 }} />
+                <span style={{ width: 9, height: 9, borderRadius: 999, background: b.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: -0.2, color: 'var(--text)', flex: 1, textAlign: 'left', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
+              </div>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{doneCount}/{b.tasks.length}</span>
-            </button>
+              <IconBtn size={26} danger title="Remove group from this day"
+                onClick={() => setConfirmGroup({ gid: b.gid, name: b.name, n: b.tasks.length })}>
+                <IconTrash size={15} />
+              </IconBtn>
+            </div>
             {!isCollapsed && (
               <div style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {b.tasks.map(t => taskRow(t, true))}
@@ -1672,6 +1680,11 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
           </div>
         );
       })}
+
+      <ConfirmSheet open={!!confirmGroup} title="Remove group"
+        message={confirmGroup ? `Remove “${confirmGroup.name}” and its ${confirmGroup.n} task${confirmGroup.n === 1 ? '' : 's'} from this day? The group itself is kept.` : ''}
+        confirmLabel="Remove" onConfirm={() => { actions.removeGroupTasks(dkey, confirmGroup.gid); setConfirmGroup(null); }}
+        onClose={() => setConfirmGroup(null)} />
     </div>
   );
 }
