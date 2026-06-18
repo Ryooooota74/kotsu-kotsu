@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781763734';</script>
+<script>window.__BUILD='1781765212';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -2769,47 +2769,50 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
   const bw = catColor ? 1.5 : 1;
   return (
     <div className="task-card" style={{
-      borderRadius: 8, padding: '9px 13px', background: 'var(--bg)',
+      borderRadius: 8, padding: '6px 8px 6px 11px', background: 'var(--bg)',
       border: `${bw}px solid ${cardBorder}`,
       borderLeft: (!catColor && info.tone === 'over') ? '3px solid #e5484d' : `${bw}px solid ${cardBorder}`,
       boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.14)' : 'none',
       transition: 'box-shadow .14s, border-color .14s',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
         {dragHandle && (
           <span onPointerDown={dragHandle} title={catColor ? getCat(data, todo.category).name + ' — drag to reorder' : 'Drag to reorder'}
             style={{
               cursor: 'grab', color: catColor || 'var(--muted)', display: 'inline-flex', flexShrink: 0,
-              touchAction: 'none', marginLeft: -4, marginTop: 1, padding: '2px 0',
+              touchAction: 'none', marginLeft: -3, padding: '2px 0',
             }}>
             <IconGrip size={16} />
           </span>
         )}
-        <div style={{ minWidth: 0, flex: 1, fontSize: 14, fontWeight: 600, letterSpacing: -0.2, lineHeight: 1.3 }}>{todo.title}</div>
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-          <IconBtn className="del-btn" size={26} onClick={() => onEdit(todo)} title="Edit"><IconPencil size={16} /></IconBtn>
-          <IconBtn className="del-btn" size={26} danger onClick={() => actions.deleteTodo(todo.id)} title="Delete"><IconTrash size={16} /></IconBtn>
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 7 }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <DuePill due={todo.due} />
+        <span style={{ flex: '1 1 140px', minWidth: 0, fontSize: 14, fontWeight: 600, letterSpacing: -0.2,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todo.title}</span>
+
+        {/* meta + actions — wraps to a second line on narrow screens */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
+          {todo.due && <DuePill due={todo.due} />}
           {(todo.subtasks || []).length > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600, color: 'var(--text2)' }}>
-              <IconCheck size={12} /> {todo.subtasks.length} subtask{todo.subtasks.length === 1 ? '' : 's'}
+            <span title={`${todo.subtasks.length} subtask${todo.subtasks.length === 1 ? '' : 's'}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', flexShrink: 0 }}>
+              <IconCheck size={12} /> {todo.subtasks.length}
             </span>
           )}
+          {addedToday ? (
+            <span title="On today’s list" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--accent)', flexShrink: 0, padding: '0 4px' }}>
+              <IconCheck size={15} /> Added
+            </span>
+          ) : (
+            <Btn variant="accentGhost" size="sm" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+              onClick={() => {
+                actions.addTask(todayKey, { title: todo.title, category: todo.category || defaultCategoryId(data), totalBoxes: 1, subtasks: todo.subtasks || [], fromTodoId: todo.id });
+                toast(`Added “${todo.title}” to today`);
+              }}><IconPlus size={14} /> Add to today</Btn>
+          )}
+          <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+            <IconBtn className="del-btn" size={26} onClick={() => onEdit(todo)} title="Edit"><IconPencil size={16} /></IconBtn>
+            <IconBtn className="del-btn" size={26} danger onClick={() => actions.deleteTodo(todo.id)} title="Delete"><IconTrash size={16} /></IconBtn>
+          </div>
         </div>
-        {addedToday ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--text2)', padding: '4px 2px' }}>
-            <IconCheck size={14} style={{ color: 'var(--accent)' }} /> On today’s list
-          </span>
-        ) : (
-          <Btn variant="accentGhost" size="sm" onClick={() => {
-            actions.addTask(todayKey, { title: todo.title, category: todo.category || defaultCategoryId(data), totalBoxes: 1, subtasks: todo.subtasks || [], fromTodoId: todo.id });
-            toast(`Added “${todo.title}” to today`);
-          }}><IconPlus size={14} /> Add to today</Btn>
-        )}
       </div>
     </div>
   );
@@ -3368,7 +3371,6 @@ function DesktopTodo({ device, dkey, toast }) {
     return s;
   }, [data.days, todayKey]);
 
-  const cols = device === 'laptop' ? 3 : 2;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <DTPageHead title="To-do" sub="Things to do soon — drag the handle to reorder."
@@ -3384,11 +3386,13 @@ function DesktopTodo({ device, dkey, toast }) {
             sub="Jot down errands and one-offs you need to get to — like returning a package."
             cta={<Btn variant="primary" onClick={() => setMode('new')}><IconPlus size={15} /> Add a to-do</Btn>} />
         ) : (
-          <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
-            addedSet={addedSet} dkey={dkey} toast={toast} mode={mode} columns={cols}
-            onEdit={(td) => setMode(td)}
-            onCancelEdit={() => setMode(null)}
-            onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
+          <div style={{ maxWidth: 720 }}>
+            <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
+              addedSet={addedSet} dkey={dkey} toast={toast} mode={mode} columns={1}
+              onEdit={(td) => setMode(td)}
+              onCancelEdit={() => setMode(null)}
+              onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
+          </div>
         )}
       </div>
     </div>
