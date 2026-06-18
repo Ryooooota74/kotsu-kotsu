@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781741542';</script>
+<script>window.__BUILD='1781742911';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -2905,12 +2905,20 @@ Object.assign(window, { TodoPage, EmptyState, TodoCard, TodoForm, DuePill });
 
 function GroupCard({ g, dkey, toast, onEdit }) {
   const { data, actions } = React.useContext(StoreContext);
-  const catColor = (id) => getCat(data, id).color;
+  // a group is one category — color the card frame with it
+  const gCatId = g.category || (g.tasks[0] && g.tasks[0].category);
+  const gColor = gCatId ? getCat(data, gCatId).color : null;
   return (
-    <div className="task-card" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '13px 14px' }}>
+    <div className="task-card" style={{
+      borderRadius: 8, padding: '13px 14px', background: 'var(--bg)',
+      border: `${gColor ? 1.5 : 1}px solid ${gColor || 'var(--border)'}`,
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2, minWidth: 0 }}>{g.name}</div>
-        <div style={{ display: 'flex', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {gColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: gColor, flexShrink: 0 }} />}
+          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
           <IconBtn className="del-btn" size={28} onClick={() => onEdit(g)} title="Edit"><IconPencil size={16} /></IconBtn>
           <IconBtn className="del-btn" size={28} danger onClick={() => actions.deleteGroup(g.id)} title="Delete"><IconTrash size={16} /></IconBtn>
         </div>
@@ -2921,7 +2929,6 @@ function GroupCard({ g, dkey, toast, onEdit }) {
         {g.tasks.slice(0, 4).map(t => (
           <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <span style={{ width: 14, height: 14, borderRadius: 4, border: '1.5px solid var(--border2)', flexShrink: 0 }} />
-            <span style={{ width: 7, height: 7, borderRadius: 999, background: catColor(t.category), flexShrink: 0 }} />
             <span style={{ fontSize: 12.5, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
           </div>
         ))}
@@ -2943,14 +2950,18 @@ function GroupCard({ g, dkey, toast, onEdit }) {
 
 // ── Full-page editor ──────────────────────────────────────────
 function GroupEditor({ initial, onCancel, onSave }) {
-  const [name, setName] = React.useState(initial?.name || '');
-  const [tasks, setTasks] = React.useState(
-    (initial?.tasks || []).map(t => ({ id: uid(), title: t.title, category: t.category, totalBoxes: t.totalBoxes || 1 }))
-  );
   const cats = React.useContext(StoreContext).data.categories || [];
   const fallbackCat = (cats[0] || { id: 'work' }).id;
+  const [name, setName] = React.useState(initial?.name || '');
+  // a group has a single category (picked by color); every task inherits it
+  const [category, setCategory] = React.useState(
+    initial?.category || (initial?.tasks && initial.tasks[0] && initial.tasks[0].category) || fallbackCat
+  );
+  const [tasks, setTasks] = React.useState(
+    (initial?.tasks || []).map(t => ({ id: uid(), title: t.title, totalBoxes: t.totalBoxes || 1 }))
+  );
 
-  const addTask = () => setTasks(ts => [...ts, { id: uid(), title: '', category: fallbackCat, totalBoxes: 1 }]);
+  const addTask = () => setTasks(ts => [...ts, { id: uid(), title: '', totalBoxes: 1 }]);
   const patch = (id, p) => setTasks(ts => ts.map(t => t.id === id ? { ...t, ...p } : t));
   const del = (id) => setTasks(ts => ts.filter(t => t.id !== id));
   const move = (i, dir) => setTasks(ts => {
@@ -2959,7 +2970,7 @@ function GroupEditor({ initial, onCancel, onSave }) {
   });
   const save = () => {
     const nm = name.trim(); if (!nm) return;
-    onSave({ name: nm, tasks: tasks.filter(t => t.title.trim()).map(t => ({ id: uid(), title: t.title.trim(), category: t.category, totalBoxes: t.totalBoxes, subtasks: [] })) });
+    onSave({ name: nm, category, tasks: tasks.filter(t => t.title.trim()).map(t => ({ id: uid(), title: t.title.trim(), category, totalBoxes: t.totalBoxes, subtasks: [] })) });
   };
 
   return (
@@ -2976,21 +2987,21 @@ function GroupEditor({ initial, onCancel, onSave }) {
         <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Group name"
           className="inp" style={{ width: '100%', fontSize: 16, fontWeight: 700, padding: '11px 13px' }} />
 
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', marginBottom: 9 }}>Category</div>
+          <CategoryPills categories={cats} value={category} onChange={setCategory} />
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {tasks.map((t, i) => (
-            <div key={t.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '10px 10px 10px 8px', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div key={t.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px 8px 6px', display: 'flex', gap: 8, alignItems: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <IconBtn size={22} onClick={() => move(i, -1)} title="Move up" style={{ opacity: i === 0 ? 0.3 : 1 }}><IconCaretUp size={15} /></IconBtn>
                 <IconBtn size={22} onClick={() => move(i, 1)} title="Move down" style={{ opacity: i === tasks.length - 1 ? 0.3 : 1 }}><IconCaretDown size={15} /></IconBtn>
               </div>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input value={t.title} onChange={e => patch(t.id, { title: e.target.value })} placeholder="Task name"
-                  className="inp" style={{ width: '100%', fontSize: 13, padding: '8px 10px' }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-                  <CategorySelect categories={cats} value={t.category} onChange={(v) => patch(t.id, { category: v })} />
-                  <Counter value={t.totalBoxes} onChange={(v) => patch(t.id, { totalBoxes: v })} min={1} max={10} />
-                </div>
-              </div>
+              <input value={t.title} onChange={e => patch(t.id, { title: e.target.value })} placeholder="Task name"
+                className="inp" style={{ flex: 1, minWidth: 0, fontSize: 13.5, padding: '9px 10px' }} />
+              <Counter value={t.totalBoxes} onChange={(v) => patch(t.id, { totalBoxes: v })} min={1} max={10} />
               <IconBtn danger size={26} onClick={() => del(t.id)} title="Remove task"><IconClose size={16} /></IconBtn>
             </div>
           ))}
