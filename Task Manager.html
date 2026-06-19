@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781824499';</script>
+<script>window.__BUILD='1781827670';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -413,6 +413,17 @@ function useStoreProvider() {
     // remove every task that came from a given group from a day
     removeGroupTasks(key, gid) {
       mutate(d => { d.days[key] = (d.days[key] || []).filter(x => x.fromGroupId !== gid); });
+    },
+    // move a task (with all its progress) from one day to another
+    moveTask(fromKey, id, toKey) {
+      mutate(d => {
+        const arr = d.days[fromKey] || [];
+        const idx = arr.findIndex(t => t.id === id);
+        if (idx < 0) return;
+        const [task] = arr.splice(idx, 1);
+        if (!d.days[toKey]) d.days[toKey] = [];
+        d.days[toKey].push(task);
+      });
     },
     // reorder the tasks whose ids appear in orderedIds, leaving any task not in
     // that list (e.g. filtered out by category) at its current array position
@@ -2450,30 +2461,42 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId }) {
   const setSub = (id, t) => setSubs(s => s.map(x => x.id === id ? { ...x, title: t } : x));
   const delSub = (id) => setSubs(s => s.filter(x => x.id !== id));
 
+  // edit existing task in place, preserving per-box / subtask progress
+  const applyEdits = () => {
+    const cleanSubs = subs.filter(s => s.title.trim());
+    actions.updateTask(dkey, editId, t => {
+      t.title = title.trim(); t.category = cat; t.totalBoxes = boxes;
+      if (t.completedCount > boxes) t.completedCount = boxes;
+      const prevById = new Map((t.subtasks || []).map(s => [s.id, s]));
+      t.subtasks = cleanSubs.map(s => {
+        const tb = s.totalBoxes || 1;
+        const prev = prevById.get(s.id);
+        return { id: s.id || uid(), title: s.title.trim(), totalBoxes: tb,
+          completedCount: prev ? Math.min(prev.completedCount, tb) : 0 };
+      });
+    });
+  };
+
   const submit = () => {
     const name = title.trim();
     if (!name) return;
-    const cleanSubs = subs.filter(s => s.title.trim());
     if (editing) {
-      // edit existing task in place, preserving per-box / subtask progress
-      actions.updateTask(dkey, editId, t => {
-        t.title = name; t.category = cat; t.totalBoxes = boxes;
-        if (t.completedCount > boxes) t.completedCount = boxes;
-        const prevById = new Map((t.subtasks || []).map(s => [s.id, s]));
-        t.subtasks = cleanSubs.map(s => {
-          const tb = s.totalBoxes || 1;
-          const prev = prevById.get(s.id);
-          return { id: s.id || uid(), title: s.title.trim(), totalBoxes: tb,
-            completedCount: prev ? Math.min(prev.completedCount, tb) : 0 };
-        });
-      });
+      applyEdits();
     } else {
       actions.addTask(dkey, {
         title: name, category: cat, totalBoxes: boxes,
-        subtasks: cleanSubs.map(s => ({ title: s.title.trim(), totalBoxes: s.totalBoxes })),
+        subtasks: subs.filter(s => s.title.trim()).map(s => ({ title: s.title.trim(), totalBoxes: s.totalBoxes })),
         fromTodoId: usedTodo || undefined,
       });
     }
+    onClose();
+  };
+
+  // move the (edited) task to the next day, keeping all its progress
+  const moveToNextDay = () => {
+    if (!title.trim()) return;
+    applyEdits();
+    actions.moveTask(dkey, editId, dateKey(addDays(parseKey(dkey), 1)));
     onClose();
   };
 
@@ -2549,6 +2572,19 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId }) {
             </button>
           </div>
         </div>
+
+        {/* move to next day (edit only) */}
+        {editing && (
+          <button type="button" onClick={moveToNextDay}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: '12px', borderRadius: 10, cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)',
+              fontFamily: 'inherit', fontWeight: 600, fontSize: 13.5,
+            }}>
+            <IconArrowRight size={16} /> Move to next day
+          </button>
+        )}
       </div>
 
       {/* footer */}
