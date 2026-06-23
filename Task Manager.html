@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1781827670';</script>
+<script>window.__BUILD='1782201575';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1777,7 +1777,7 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
         <DateNav dkey={dkey} setDkey={setDkey} recordKeys={recordKeys} />
       </StickyHeader>
 
-      <div style={{ padding: '12px 0 40px' }}>
+      <div style={{ padding: '12px 0 calc(104px + env(safe-area-inset-bottom))' }}>
         {/* category switcher */}
         <div className="scrollarea" style={{
           display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto',
@@ -2954,7 +2954,7 @@ function TodoPage({ page, setPage, dkey, toast }) {
         } />
       </StickyHeader>
 
-      <div style={{ padding: '14px 14px 40px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '14px 14px calc(80px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ fontSize: 12.5, color: 'var(--text2)', padding: '0 2px 2px' }}>
           Things to do soon — drag the handle to reorder. Add one to a day when you’re ready to tackle it.
         </div>
@@ -3083,7 +3083,7 @@ function GroupEditor({ initial, onCancel, onSave }) {
         </div>
       </StickyHeader>
 
-      <div style={{ padding: '14px 14px 40px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ padding: '14px 14px calc(80px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Group name"
           className="inp" style={{ width: '100%', fontSize: 16, fontWeight: 700, padding: '11px 13px' }} />
 
