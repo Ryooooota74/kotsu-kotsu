@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1782343973';</script>
+<script>window.__BUILD='1782345492';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1448,6 +1448,15 @@ function TaskActionSheet({ open, taskId, dkey, onClose, onEdit }) {
             color: 'var(--text)', fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
           }}>
           <IconPencil size={17} /> Edit task
+        </button>
+
+        <button type="button" onClick={() => { actions.moveTask(dkey, task.id, dateKey(addDays(parseKey(dkey), 1))); onClose(); }}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer',
+            padding: '13px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg)',
+            color: 'var(--text)', fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
+          }}>
+          <IconArrowRight size={17} /> Move to next day
         </button>
 
         {confirming ? (
