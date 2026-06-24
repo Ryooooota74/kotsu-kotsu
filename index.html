@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1782201575';</script>
+<script>window.__BUILD='1782343973';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -410,9 +410,9 @@ function useStoreProvider() {
     deleteTask(key, id) {
       mutate(d => { d.days[key] = (d.days[key] || []).filter(x => x.id !== id); });
     },
-    // remove every task that came from a given group from a day
-    removeGroupTasks(key, gid) {
-      mutate(d => { d.days[key] = (d.days[key] || []).filter(x => x.fromGroupId !== gid); });
+    // remove a specific set of tasks (by id) from a day
+    removeTasks(key, ids) {
+      mutate(d => { const set = new Set(ids); d.days[key] = (d.days[key] || []).filter(x => !set.has(x.id)); });
     },
     // move a task (with all its progress) from one day to another
     moveTask(fromKey, id, toKey) {
@@ -1683,7 +1683,7 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
               </div>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{doneCount}/{b.tasks.length}</span>
               <IconBtn size={26} danger title="Remove group from this day"
-                onClick={() => setConfirmGroup({ gid: b.gid, name: b.name, n: b.tasks.length })}>
+                onClick={() => setConfirmGroup({ name: b.name, n: b.tasks.length, ids: b.tasks.map(t => t.id) })}>
                 <IconTrash size={15} />
               </IconBtn>
             </div>
@@ -1698,7 +1698,7 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
 
       <ConfirmSheet open={!!confirmGroup} title="Remove group"
         message={confirmGroup ? `Remove “${confirmGroup.name}” and its ${confirmGroup.n} task${confirmGroup.n === 1 ? '' : 's'} from this day? The group itself is kept.` : ''}
-        confirmLabel="Remove" onConfirm={() => { actions.removeGroupTasks(dkey, confirmGroup.gid); setConfirmGroup(null); }}
+        confirmLabel="Remove" onConfirm={() => { actions.removeTasks(dkey, confirmGroup.ids); setConfirmGroup(null); }}
         onClose={() => setConfirmGroup(null)} />
     </div>
   );
@@ -3020,8 +3020,8 @@ function GroupCard({ g, dkey, toast, onEdit }) {
 
       {/* preview list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '11px 0' }}>
-        {g.tasks.slice(0, 4).map(t => (
-          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        {g.tasks.slice(0, 4).map((t, i) => (
+          <div key={t.id || i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <span style={{ width: 14, height: 14, borderRadius: 4, border: '1.5px solid var(--border2)', flexShrink: 0 }} />
             <span style={{ fontSize: 12.5, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
           </div>
@@ -3033,7 +3033,8 @@ function GroupCard({ g, dkey, toast, onEdit }) {
         <TagPill tone="accent">{g.tasks.length} task{g.tasks.length !== 1 ? 's' : ''}</TagPill>
         <div style={{ flex: 1 }} />
         <Btn variant="accentGhost" size="sm" onClick={() => {
-          actions.addTasksBulk(dkey, g.tasks.map(t => ({ title: t.title, category: t.category, totalBoxes: t.totalBoxes,
+          // always add to the real current day (the Groups page has no date context)
+          actions.addTasksBulk(dateKey(new Date()), g.tasks.map(t => ({ title: t.title, category: t.category, totalBoxes: t.totalBoxes,
             subtasks: (t.subtasks || []).map(s => ({ title: s.title, totalBoxes: s.totalBoxes || 1 })), fromGroupId: g.id, fromGroupName: g.name })));
           toast(`Added ${g.tasks.length} tasks to today`);
         }}><IconPlus size={14} /> Add to today</Btn>
