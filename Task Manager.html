@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1782345492';</script>
+<script>window.__BUILD='1782345907';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -423,6 +423,17 @@ function useStoreProvider() {
         const [task] = arr.splice(idx, 1);
         if (!d.days[toKey]) d.days[toKey] = [];
         d.days[toKey].push(task);
+      });
+    },
+    // move several tasks (e.g. a whole group block) to another day, keeping order
+    moveTasks(fromKey, ids, toKey) {
+      mutate(d => {
+        const set = new Set(ids);
+        const arr = d.days[fromKey] || [];
+        const moving = arr.filter(t => set.has(t.id));
+        d.days[fromKey] = arr.filter(t => !set.has(t.id));
+        if (!d.days[toKey]) d.days[toKey] = [];
+        d.days[toKey].push(...moving);
       });
     },
     // reorder the tasks whose ids appear in orderedIds, leaving any task not in
@@ -1691,6 +1702,10 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
                 <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: -0.2, color: 'var(--text)', flex: 1, textAlign: 'left', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
               </div>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{doneCount}/{b.tasks.length}</span>
+              <IconBtn size={26} title="Move group to next day"
+                onClick={() => actions.moveTasks(dkey, b.tasks.map(t => t.id), dateKey(addDays(parseKey(dkey), 1)))}>
+                <IconArrowRight size={15} />
+              </IconBtn>
               <IconBtn size={26} danger title="Remove group from this day"
                 onClick={() => setConfirmGroup({ name: b.name, n: b.tasks.length, ids: b.tasks.map(t => t.id) })}>
                 <IconTrash size={15} />
