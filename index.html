@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1782345907';</script>
+<script>window.__BUILD='1782369176';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -487,10 +487,16 @@ function useStoreProvider() {
     updateTodo(id, t) { mutate(d => { const i = d.todos.findIndex(x => x.id === id); if (i >= 0) d.todos[i] = { ...d.todos[i], ...t }; }); },
     deleteTodo(id) { mutate(d => { d.todos = d.todos.filter(x => x.id !== id); }); },
     // reorder the to-do backlog to match orderedIds
+    // reorder only the todos in orderedIds, leaving any not listed (e.g. filtered
+    // out by category) at their current position
     reorderTodos(orderedIds) {
       mutate(d => {
-        const byId = new Map((d.todos || []).map(t => [t.id, t]));
-        d.todos = orderedIds.map(id => byId.get(id)).filter(Boolean);
+        const arr = d.todos || [];
+        const idSet = new Set(orderedIds);
+        const byId = new Map(arr.map(t => [t.id, t]));
+        const queue = orderedIds.map(id => byId.get(id)).filter(Boolean);
+        let qi = 0;
+        d.todos = arr.map(t => (idSet.has(t.id) ? queue[qi++] : t));
       });
     },
 
@@ -2956,10 +2962,22 @@ function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mod
 function TodoPage({ page, setPage, dkey, toast }) {
   const { data, actions } = React.useContext(StoreContext);
   const [mode, setMode] = React.useState(null); // null | 'new' | todo
+  const [catFilter, setCatFilter] = React.useState('all'); // 'all' | 'none' | catId
   const todayKey = dateKey(new Date());
+  const cats = data.categories || [];
 
   // manual order: respect the stored backlog order (drag to reorder)
-  const todos = data.todos || [];
+  const allTodos = data.todos || [];
+  const catCounts = React.useMemo(() => {
+    const m = {};
+    allTodos.forEach(t => { const k = t.category || 'none'; m[k] = (m[k] || 0) + 1; });
+    return m;
+  }, [allTodos]);
+  const todos = React.useMemo(() => (
+    catFilter === 'all' ? allTodos
+      : catFilter === 'none' ? allTodos.filter(t => !t.category)
+        : allTodos.filter(t => t.category === catFilter)
+  ), [allTodos, catFilter]);
 
   // which todos already have an incomplete task on today's list
   const addedSet = React.useMemo(() => {
@@ -2982,6 +3000,19 @@ function TodoPage({ page, setPage, dkey, toast }) {
         <div style={{ fontSize: 12.5, color: 'var(--text2)', padding: '0 2px 2px' }}>
           Things to do soon — drag the handle to reorder. Add one to a day when you’re ready to tackle it.
         </div>
+
+        {/* category filter (only when some to-dos are categorized) */}
+        {cats.some(c => catCounts[c.id]) && (
+          <div className="scrollarea" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '2px 0 4px', alignItems: 'center' }}>
+            <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={allTodos.length} onClick={() => setCatFilter('all')} />
+            {cats.filter(c => catCounts[c.id]).map(c => (
+              <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id]} onClick={() => setCatFilter(c.id)} />
+            ))}
+            {catCounts['none'] > 0 && (
+              <CategoryPill cat={{ name: 'No category' }} active={catFilter === 'none'} count={catCounts['none']} onClick={() => setCatFilter('none')} />
+            )}
+          </div>
+        )}
 
         {mode === 'new' && (
           <TodoForm onCancel={() => setMode(null)} onSave={(t) => { actions.addTodo(t); setMode(null); toast('Added to To-do'); }} />
@@ -3425,10 +3456,22 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
 function DesktopTodo({ device, dkey, toast }) {
   const { data, actions } = React.useContext(StoreContext);
   const [mode, setMode] = React.useState(null);
+  const [catFilter, setCatFilter] = React.useState('all');
   const todayKey = dateKey(new Date());
+  const cats = data.categories || [];
 
   // manual order: respect the stored backlog order (drag to reorder)
-  const todos = data.todos || [];
+  const allTodos = data.todos || [];
+  const catCounts = React.useMemo(() => {
+    const m = {};
+    allTodos.forEach(t => { const k = t.category || 'none'; m[k] = (m[k] || 0) + 1; });
+    return m;
+  }, [allTodos]);
+  const todos = React.useMemo(() => (
+    catFilter === 'all' ? allTodos
+      : catFilter === 'none' ? allTodos.filter(t => !t.category)
+        : allTodos.filter(t => t.category === catFilter)
+  ), [allTodos, catFilter]);
 
   const addedSet = React.useMemo(() => {
     const s = new Set();
@@ -3441,6 +3484,17 @@ function DesktopTodo({ device, dkey, toast }) {
       <DTPageHead title="To-do" sub="Things to do soon — drag the handle to reorder."
         actions={<Btn variant="primary" size="md" onClick={() => setMode('new')}><IconPlus size={15} /> New to-do</Btn>} />
       <div className="dt-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 26px 30px' }}>
+        {cats.some(c => catCounts[c.id]) && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', maxWidth: 720, marginBottom: 16 }}>
+            <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={allTodos.length} onClick={() => setCatFilter('all')} />
+            {cats.filter(c => catCounts[c.id]).map(c => (
+              <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id]} onClick={() => setCatFilter(c.id)} />
+            ))}
+            {catCounts['none'] > 0 && (
+              <CategoryPill cat={{ name: 'No category' }} active={catFilter === 'none'} count={catCounts['none']} onClick={() => setCatFilter('none')} />
+            )}
+          </div>
+        )}
         {mode === 'new' && (
           <div style={{ maxWidth: 460, marginBottom: 18 }}>
             <TodoForm onCancel={() => setMode(null)} onSave={(t) => { actions.addTodo(t); setMode(null); toast('Added to To-do'); }} />
