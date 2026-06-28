@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1782369176';</script>
+<script>window.__BUILD='1782644256';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -2566,11 +2566,12 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId }) {
           </div>
         )}
 
-        {/* task name */}
+        {/* task name — no autofocus (don't pop the keyboard until tapped);
+            Enter just closes the keyboard, the task is added via the button */}
         <div>
           <FieldLabel>Task name</FieldLabel>
-          <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          <input value={title} onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
             placeholder="What needs doing?" className="inp" style={{ width: '100%', fontSize: 15, padding: '11px 13px' }} />
         </div>
 
@@ -3001,12 +3002,12 @@ function TodoPage({ page, setPage, dkey, toast }) {
           Things to do soon — drag the handle to reorder. Add one to a day when you’re ready to tackle it.
         </div>
 
-        {/* category filter (only when some to-dos are categorized) */}
-        {cats.some(c => catCounts[c.id]) && (
+        {/* category filter — shows every category so you can always pick one */}
+        {allTodos.length > 0 && (
           <div className="scrollarea" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '2px 0 4px', alignItems: 'center' }}>
             <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={allTodos.length} onClick={() => setCatFilter('all')} />
-            {cats.filter(c => catCounts[c.id]).map(c => (
-              <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id]} onClick={() => setCatFilter(c.id)} />
+            {cats.map(c => (
+              <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id] || 0} onClick={() => setCatFilter(c.id)} />
             ))}
             {catCounts['none'] > 0 && (
               <CategoryPill cat={{ name: 'No category' }} active={catFilter === 'none'} count={catCounts['none']} onClick={() => setCatFilter('none')} />
@@ -3484,11 +3485,11 @@ function DesktopTodo({ device, dkey, toast }) {
       <DTPageHead title="To-do" sub="Things to do soon — drag the handle to reorder."
         actions={<Btn variant="primary" size="md" onClick={() => setMode('new')}><IconPlus size={15} /> New to-do</Btn>} />
       <div className="dt-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 26px 30px' }}>
-        {cats.some(c => catCounts[c.id]) && (
+        {allTodos.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', maxWidth: 720, marginBottom: 16 }}>
             <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={allTodos.length} onClick={() => setCatFilter('all')} />
-            {cats.filter(c => catCounts[c.id]).map(c => (
-              <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id]} onClick={() => setCatFilter(c.id)} />
+            {cats.map(c => (
+              <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id] || 0} onClick={() => setCatFilter(c.id)} />
             ))}
             {catCounts['none'] > 0 && (
               <CategoryPill cat={{ name: 'No category' }} active={catFilter === 'none'} count={catCounts['none']} onClick={() => setCatFilter('none')} />
