@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1782644256';</script>
+<script>window.__BUILD='1782948937';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -2459,9 +2459,20 @@ function FieldLabel({ children }) {
   return <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>{children}</div>;
 }
 
-function AddTaskModal({ open, onClose, dkey, defaultCat, editId }) {
+function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
+
+  // apply a whole group's tasks to this day, then close
+  const applyGroup = (g) => {
+    actions.addTasksBulk(dkey, g.tasks.map(t => ({
+      title: t.title, category: t.category, totalBoxes: t.totalBoxes,
+      subtasks: (t.subtasks || []).map(s => ({ title: s.title, totalBoxes: s.totalBoxes || 1 })),
+      fromGroupId: g.id, fromGroupName: g.name,
+    })));
+    if (toast) toast(`Added ${g.tasks.length} task${g.tasks.length !== 1 ? 's' : ''} from “${g.name}”`);
+    onClose();
+  };
   const editing = editId ? (data.days[dkey] || []).find(t => t.id === editId) : null;
   const initialCat = defaultCat || defaultCategoryId(data);
   const [title, setTitle] = React.useState('');
@@ -2559,6 +2570,32 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId }) {
                     }}>
                     <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
                     <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{info.label || 'No date'}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* apply a group (adds all its tasks to this day) */}
+        {!editing && (data.groups || []).length > 0 && (
+          <div>
+            <FieldLabel>Apply a group</FieldLabel>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -2px' }}>
+              {data.groups.map(g => {
+                const color = getCat(data, g.category || (g.tasks[0] && g.tasks[0].category)).color;
+                return (
+                  <button type="button" key={g.id} onClick={() => applyGroup(g)}
+                    style={{
+                      flexShrink: 0, textAlign: 'left', cursor: 'pointer', borderRadius: 10,
+                      border: '1px solid var(--border)', background: 'var(--bg)',
+                      padding: '9px 12px', minWidth: 120, maxWidth: 190,
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{g.tasks.length} task{g.tasks.length !== 1 ? 's' : ''}</div>
                   </button>
                 );
               })}
@@ -3657,7 +3694,7 @@ function DesktopApp({ device, page, setPage, dkey, setDkey, toast }) {
         {page === 'groups' && <DesktopGroups device={device} dkey={dkey} toast={toast} />}
       </div>
 
-      <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} />
+      <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} toast={toast} />
       <AddTaskModal open={!!editId} editId={editId} onClose={() => setEditId(null)} dkey={dkey} />
       <ApplyGroupSheet open={applyOpen} onClose={() => setApplyOpen(false)} dkey={dkey} />
       <ManageCategoriesSheet open={manageOpen} onClose={() => setManageOpen(false)} />
@@ -4709,7 +4746,7 @@ function PhoneShell({ store, page, setPage, dkey, setDkey, toast }) {
         {page === 'groups' && <GroupsPage page={page} setPage={setPage} dkey={dkey} toast={toast} />}
       </div>
 
-      <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} />
+      <AddTaskModal open={addOpen} onClose={() => setAddOpen(false)} dkey={dkey} defaultCat={addCat} toast={toast} />
       <AddTaskModal open={!!editId} editId={editId} onClose={() => setEditId(null)} dkey={dkey} />
       <ApplyGroupSheet open={applyOpen} onClose={() => setApplyOpen(false)} dkey={dkey} />
 
