@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1787566379';</script>
+<script>window.__BUILD='1787567790';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -484,6 +484,8 @@ function useStoreProvider() {
 
     // to-do backlog
     addTodo(t) { mutate(d => { d.todos.unshift({ ...t, id: uid(), createdAt: Date.now() }); }); },
+    // a divider is a standalone entry in the backlog you can drag anywhere
+    addDivider() { mutate(d => { d.todos.unshift({ id: uid(), type: 'divider', label: '', createdAt: Date.now() }); }); },
     updateTodo(id, t) { mutate(d => { const i = d.todos.findIndex(x => x.id === id); if (i >= 0) d.todos[i] = { ...d.todos[i], ...t }; }); },
     deleteTodo(id) { mutate(d => { d.todos = d.todos.filter(x => x.id !== id); }); },
     // reorder the to-do backlog to match orderedIds
@@ -2557,12 +2559,12 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
       </div>
 
       <div style={{ overflow: 'auto', padding: '0 18px 4px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {/* from to-do */}
-        {!editing && (data.todos || []).length > 0 && (
+        {/* from to-do (dividers are separators, not to-dos) */}
+        {!editing && (data.todos || []).filter(p => p.type !== 'divider').length > 0 && (
           <div>
             <FieldLabel>From To-do</FieldLabel>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -2px' }}>
-              {data.todos.map(p => {
+              {data.todos.filter(p => p.type !== 'divider').map(p => {
                 const active = usedTodo === p.id;
                 const info = dueInfo(p.due);
                 return (
@@ -2831,15 +2833,12 @@ function TodoForm({ initial, onCancel, onSave }) {
   const [due, setDue] = React.useState(initial?.due ?? null);
   const [category, setCategory] = React.useState(initial?.category ?? null);
   const [subs, setSubs] = React.useState(() => (initial?.subtasks || []).map(s => ({ id: uid(), title: s.title, totalBoxes: s.totalBoxes || 1 })));
-  // optional divider drawn under this to-do (e.g. "by this weekend")
-  const [dividerBelow, setDividerBelow] = React.useState(!!initial?.dividerBelow);
-  const [dividerLabel, setDividerLabel] = React.useState(initial?.dividerLabel || '');
   const addSub = () => setSubs(s => [...s, { id: uid(), title: '', totalBoxes: 1 }]);
   const setSub = (id, t) => setSubs(s => s.map(x => x.id === id ? { ...x, title: t } : x));
   const delSub = (id) => setSubs(s => s.filter(x => x.id !== id));
   const save = () => {
     const n = title.trim(); if (!n) return;
-    onSave({ title: n, due, category, dividerBelow, dividerLabel: dividerBelow ? dividerLabel.trim() : '',
+    onSave({ title: n, due, category,
       subtasks: subs.filter(s => s.title.trim()).map(s => ({ title: s.title.trim(), totalBoxes: s.totalBoxes || 1 })) });
   };
   return (
@@ -2872,25 +2871,6 @@ function TodoForm({ initial, onCancel, onSave }) {
             <IconPlus size={15} /> Add subtask
           </button>
         </div>
-      </div>
-      <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', marginBottom: 9 }}>Divider (optional)</div>
-        <button type="button" onClick={() => setDividerBelow(v => !v)}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-            padding: '8px 13px', borderRadius: 999,
-            border: '1.5px solid ' + (dividerBelow ? 'var(--accent)' : 'var(--border)'),
-            background: dividerBelow ? 'var(--accent-soft)' : 'var(--bg)',
-            color: dividerBelow ? 'var(--accent)' : 'var(--text2)',
-            fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
-          }}>
-          {dividerBelow ? <IconCheck size={14} /> : <IconPlus size={14} />} Draw a line below
-        </button>
-        {dividerBelow && (
-          <input value={dividerLabel} onChange={e => setDividerLabel(e.target.value)}
-            placeholder="Label (optional) — e.g. by this weekend" className="inp"
-            style={{ width: '100%', marginTop: 9, fontSize: 13, padding: '9px 11px', background: 'var(--bg)' }} />
-        )}
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <Btn variant="ghost" onClick={onCancel} style={{ flex: 1 }}>Cancel</Btn>
@@ -2959,9 +2939,46 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
   );
 }
 
+// ── Divider row — a standalone separator you can drag anywhere ─
+function DividerRow({ divider, actions, dragHandle, dragging }) {
+  // size the label to its text — CJK glyphs are about twice as wide as latin ones
+  const label = divider.label || '';
+  const labelWidth = Math.min(240, Math.max(72,
+    [...label].reduce((n, ch) => n + (/[　-鿿가-힯＀-￯]/.test(ch) ? 15 : 8), 0) + 26));
+  return (
+    <div className="task-card" style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '2px 6px 2px 2px',
+      background: 'transparent', border: 'none',
+      opacity: dragging ? 1 : undefined,
+    }}>
+      {dragHandle && (
+        <span onPointerDown={dragHandle} title="Drag to move the line"
+          style={{
+            cursor: 'grab', color: 'var(--muted)', display: 'inline-flex', flexShrink: 0,
+            touchAction: 'none', padding: '4px 0',
+          }}>
+          <IconGrip size={16} />
+        </span>
+      )}
+      <span style={{ flex: 1, height: 0, borderTop: `2px dashed ${dragging ? 'var(--accent)' : 'var(--border2)'}` }} />
+      <input value={label} onChange={e => actions.updateTodo(divider.id, { label: e.target.value })}
+        placeholder="Label…" title="Name this section"
+        style={{
+          flexShrink: 0, width: labelWidth,
+          textAlign: 'center', border: 'none', outline: 'none', borderRadius: 999,
+          background: 'var(--bg3)', color: 'var(--text2)', padding: '4px 10px',
+          fontFamily: 'inherit', fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2,
+        }} />
+      <span style={{ flex: 1, height: 0, borderTop: `2px dashed ${dragging ? 'var(--accent)' : 'var(--border2)'}` }} />
+      <IconBtn className="del-btn" size={24} danger title="Remove line"
+        onClick={() => actions.deleteTodo(divider.id)}><IconClose size={14} /></IconBtn>
+    </div>
+  );
+}
+
 // ── Sortable to-do list (pointer-based drag to reorder) ───────
 // columns > 1 renders a grid; hit-testing checks both axes so it works either way.
-function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mode, onEdit, onCancelEdit, onSaveEdit, columns = 1, showDividers = true }) {
+function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mode, onEdit, onCancelEdit, onSaveEdit, columns = 1 }) {
   const [order, setOrder] = React.useState(todos);
   const [dragId, setDragId] = React.useState(null);
   const orderRef = React.useRef(todos);
@@ -3015,32 +3032,19 @@ function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mod
   return (
     <div style={containerStyle}>
       {order.map(t => (
-        <React.Fragment key={t.id}>
-          <div ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
-            {mode && mode.id === t.id ? (
-              <TodoForm initial={t} onCancel={onCancelEdit} onSave={(nt) => onSaveEdit(t.id, nt)} />
-            ) : (
-              <TodoCard todo={t} dkey={dkey} todayKey={todayKey}
-                addedToday={addedSet.has(t.id)} toast={toast} onEdit={onEdit}
-                dragHandle={startDrag(t.id)} dragging={dragId === t.id} />
-            )}
-          </div>
-          {showDividers && t.dividerBelow && (
-            <div style={{
-              gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 10,
-              padding: '2px 2px 4px', userSelect: 'none',
-            }}>
-              <span style={{ flex: 1, height: 0, borderTop: '2px dashed var(--border2)' }} />
-              {t.dividerLabel ? (
-                <span style={{
-                  flexShrink: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2,
-                  color: 'var(--text2)', background: 'var(--bg3)', padding: '3px 10px', borderRadius: 999,
-                }}>{t.dividerLabel}</span>
-              ) : null}
-              <span style={{ flex: 1, height: 0, borderTop: '2px dashed var(--border2)' }} />
-            </div>
+        <div key={t.id}
+          ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
+          {t.type === 'divider' ? (
+            <DividerRow divider={t} actions={actions}
+              dragHandle={startDrag(t.id)} dragging={dragId === t.id} />
+          ) : mode && mode.id === t.id ? (
+            <TodoForm initial={t} onCancel={onCancelEdit} onSave={(nt) => onSaveEdit(t.id, nt)} />
+          ) : (
+            <TodoCard todo={t} dkey={dkey} todayKey={todayKey}
+              addedToday={addedSet.has(t.id)} toast={toast} onEdit={onEdit}
+              dragHandle={startDrag(t.id)} dragging={dragId === t.id} />
           )}
-        </React.Fragment>
+        </div>
       ))}
     </div>
   );
@@ -3053,18 +3057,21 @@ function TodoPage({ page, setPage, dkey, toast }) {
   const todayKey = dateKey(new Date());
   const cats = data.categories || [];
 
-  // manual order: respect the stored backlog order (drag to reorder)
-  const allTodos = data.todos || [];
+  // manual order: respect the stored backlog order (drag to reorder).
+  // dividers live in the same list but are separators, not to-dos.
+  const allEntries = data.todos || [];
+  const realTodos = React.useMemo(() => allEntries.filter(t => t.type !== 'divider'), [allEntries]);
   const catCounts = React.useMemo(() => {
     const m = {};
-    allTodos.forEach(t => { const k = t.category || 'none'; m[k] = (m[k] || 0) + 1; });
+    realTodos.forEach(t => { const k = t.category || 'none'; m[k] = (m[k] || 0) + 1; });
     return m;
-  }, [allTodos]);
+  }, [realTodos]);
+  // a filtered view is partial, so dividers only make sense in the "All" view
   const todos = React.useMemo(() => (
-    catFilter === 'all' ? allTodos
-      : catFilter === 'none' ? allTodos.filter(t => !t.category)
-        : allTodos.filter(t => t.category === catFilter)
-  ), [allTodos, catFilter]);
+    catFilter === 'all' ? allEntries
+      : catFilter === 'none' ? realTodos.filter(t => !t.category)
+        : realTodos.filter(t => t.category === catFilter)
+  ), [allEntries, realTodos, catFilter]);
 
   // which todos already have an incomplete task on today's list
   const addedSet = React.useMemo(() => {
@@ -3089,9 +3096,9 @@ function TodoPage({ page, setPage, dkey, toast }) {
         </div>
 
         {/* category filter — shows every category so you can always pick one */}
-        {allTodos.length > 0 && (
+        {realTodos.length > 0 && (
           <div className="scrollarea" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '2px 0 4px', alignItems: 'center' }}>
-            <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={allTodos.length} onClick={() => setCatFilter('all')} />
+            <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={realTodos.length} onClick={() => setCatFilter('all')} />
             {cats.map(c => (
               <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id] || 0} onClick={() => setCatFilter(c.id)} />
             ))}
@@ -3105,17 +3112,23 @@ function TodoPage({ page, setPage, dkey, toast }) {
           <TodoForm onCancel={() => setMode(null)} onSave={(t) => { actions.addTodo(t); setMode(null); toast('Added to To-do'); }} />
         )}
 
-        {todos.length === 0 && mode !== 'new' ? (
+        {realTodos.length === 0 && mode !== 'new' ? (
           <EmptyState mark={<MarkProjects size={66} />} title="Nothing on the list"
             sub="Jot down errands and one-offs you need to get to — like returning a package."
             cta={<Btn variant="primary" onClick={() => setMode('new')}><IconPlus size={15} /> Add a to-do</Btn>} />
         ) : (
           <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
             addedSet={addedSet} dkey={dkey} toast={toast} mode={mode}
-            showDividers={catFilter === 'all'}
             onEdit={(td) => setMode(td)}
             onCancelEdit={() => setMode(null)}
             onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
+        )}
+
+        {/* dividers only make sense against the full, ordered list */}
+        {realTodos.length > 0 && catFilter === 'all' && (
+          <button type="button" onClick={() => actions.addDivider()} className="dashed-add" style={{ marginTop: 2 }}>
+            <IconPlus size={15} /> Add a line
+          </button>
         )}
       </div>
     </div>
@@ -3548,18 +3561,21 @@ function DesktopTodo({ device, dkey, toast }) {
   const todayKey = dateKey(new Date());
   const cats = data.categories || [];
 
-  // manual order: respect the stored backlog order (drag to reorder)
-  const allTodos = data.todos || [];
+  // manual order: respect the stored backlog order (drag to reorder).
+  // dividers live in the same list but are separators, not to-dos.
+  const allEntries = data.todos || [];
+  const realTodos = React.useMemo(() => allEntries.filter(t => t.type !== 'divider'), [allEntries]);
   const catCounts = React.useMemo(() => {
     const m = {};
-    allTodos.forEach(t => { const k = t.category || 'none'; m[k] = (m[k] || 0) + 1; });
+    realTodos.forEach(t => { const k = t.category || 'none'; m[k] = (m[k] || 0) + 1; });
     return m;
-  }, [allTodos]);
+  }, [realTodos]);
+  // a filtered view is partial, so dividers only make sense in the "All" view
   const todos = React.useMemo(() => (
-    catFilter === 'all' ? allTodos
-      : catFilter === 'none' ? allTodos.filter(t => !t.category)
-        : allTodos.filter(t => t.category === catFilter)
-  ), [allTodos, catFilter]);
+    catFilter === 'all' ? allEntries
+      : catFilter === 'none' ? realTodos.filter(t => !t.category)
+        : realTodos.filter(t => t.category === catFilter)
+  ), [allEntries, realTodos, catFilter]);
 
   const addedSet = React.useMemo(() => {
     const s = new Set();
@@ -3572,9 +3588,9 @@ function DesktopTodo({ device, dkey, toast }) {
       <DTPageHead title="To-do" sub="Things to do soon — drag the handle to reorder."
         actions={<Btn variant="primary" size="md" onClick={() => setMode('new')}><IconPlus size={15} /> New to-do</Btn>} />
       <div className="dt-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 26px 30px' }}>
-        {allTodos.length > 0 && (
+        {realTodos.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', maxWidth: 720, marginBottom: 16 }}>
-            <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={allTodos.length} onClick={() => setCatFilter('all')} />
+            <CategoryPill cat={{ name: 'All' }} active={catFilter === 'all'} count={realTodos.length} onClick={() => setCatFilter('all')} />
             {cats.map(c => (
               <CategoryPill key={c.id} cat={c} active={catFilter === c.id} count={catCounts[c.id] || 0} onClick={() => setCatFilter(c.id)} />
             ))}
@@ -3588,7 +3604,7 @@ function DesktopTodo({ device, dkey, toast }) {
             <TodoForm onCancel={() => setMode(null)} onSave={(t) => { actions.addTodo(t); setMode(null); toast('Added to To-do'); }} />
           </div>
         )}
-        {todos.length === 0 && mode !== 'new' ? (
+        {realTodos.length === 0 && mode !== 'new' ? (
           <EmptyState mark={<MarkProjects size={66} />} title="Nothing on the list"
             sub="Jot down errands and one-offs you need to get to — like returning a package."
             cta={<Btn variant="primary" onClick={() => setMode('new')}><IconPlus size={15} /> Add a to-do</Btn>} />
@@ -3596,10 +3612,14 @@ function DesktopTodo({ device, dkey, toast }) {
           <div style={{ maxWidth: 720 }}>
             <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
               addedSet={addedSet} dkey={dkey} toast={toast} mode={mode} columns={1}
-              showDividers={catFilter === 'all'}
               onEdit={(td) => setMode(td)}
               onCancelEdit={() => setMode(null)}
               onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
+            {catFilter === 'all' && (
+              <button type="button" onClick={() => actions.addDivider()} className="dashed-add" style={{ marginTop: 10 }}>
+                <IconPlus size={15} /> Add a line
+              </button>
+            )}
           </div>
         )}
       </div>
