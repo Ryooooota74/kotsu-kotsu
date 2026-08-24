@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1787532461';</script>
+<script>window.__BUILD='1787566379';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -2455,6 +2455,11 @@ Object.assign(window, { CalendarPage, MonthGrid, WeekView, EventEditorSheet, Tas
 // addtask.jsx — AddTaskModal (bottom sheet) + ApplyGroupSheet
 // Exports to window: AddTaskModal, ApplyGroupSheet
 
+// phones use the same <768px breakpoint as the layout switcher
+function isPhoneWidth() {
+  return typeof window !== 'undefined' && window.innerWidth < 768;
+}
+
 function FieldLabel({ children }) {
   return <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>{children}</div>;
 }
@@ -2603,12 +2608,17 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
           </div>
         )}
 
-        {/* task name — no autofocus (don't pop the keyboard until tapped);
-            Enter just closes the keyboard, the task is added via the button */}
+        {/* task name — no autofocus (don't pop the keyboard until tapped).
+            Enter submits on desktop; on phones it just closes the keyboard so the
+            rest of the form stays reachable (the button adds the task there). */}
         <div>
           <FieldLabel>Task name</FieldLabel>
           <input value={title} onChange={e => setTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (isPhoneWidth()) e.currentTarget.blur(); else submit();
+            }}
             placeholder="What needs doing?" className="inp" style={{ width: '100%', fontSize: 15, padding: '11px 13px' }} />
         </div>
 
