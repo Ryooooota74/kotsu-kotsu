@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1782948937';</script>
+<script>window.__BUILD='1787532461';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -2821,12 +2821,16 @@ function TodoForm({ initial, onCancel, onSave }) {
   const [due, setDue] = React.useState(initial?.due ?? null);
   const [category, setCategory] = React.useState(initial?.category ?? null);
   const [subs, setSubs] = React.useState(() => (initial?.subtasks || []).map(s => ({ id: uid(), title: s.title, totalBoxes: s.totalBoxes || 1 })));
+  // optional divider drawn under this to-do (e.g. "by this weekend")
+  const [dividerBelow, setDividerBelow] = React.useState(!!initial?.dividerBelow);
+  const [dividerLabel, setDividerLabel] = React.useState(initial?.dividerLabel || '');
   const addSub = () => setSubs(s => [...s, { id: uid(), title: '', totalBoxes: 1 }]);
   const setSub = (id, t) => setSubs(s => s.map(x => x.id === id ? { ...x, title: t } : x));
   const delSub = (id) => setSubs(s => s.filter(x => x.id !== id));
   const save = () => {
     const n = title.trim(); if (!n) return;
-    onSave({ title: n, due, category, subtasks: subs.filter(s => s.title.trim()).map(s => ({ title: s.title.trim(), totalBoxes: s.totalBoxes || 1 })) });
+    onSave({ title: n, due, category, dividerBelow, dividerLabel: dividerBelow ? dividerLabel.trim() : '',
+      subtasks: subs.filter(s => s.title.trim()).map(s => ({ title: s.title.trim(), totalBoxes: s.totalBoxes || 1 })) });
   };
   return (
     <div style={{ border: '1px solid var(--border2)', borderRadius: 12, padding: 14, background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2858,6 +2862,25 @@ function TodoForm({ initial, onCancel, onSave }) {
             <IconPlus size={15} /> Add subtask
           </button>
         </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', marginBottom: 9 }}>Divider (optional)</div>
+        <button type="button" onClick={() => setDividerBelow(v => !v)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+            padding: '8px 13px', borderRadius: 999,
+            border: '1.5px solid ' + (dividerBelow ? 'var(--accent)' : 'var(--border)'),
+            background: dividerBelow ? 'var(--accent-soft)' : 'var(--bg)',
+            color: dividerBelow ? 'var(--accent)' : 'var(--text2)',
+            fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
+          }}>
+          {dividerBelow ? <IconCheck size={14} /> : <IconPlus size={14} />} Draw a line below
+        </button>
+        {dividerBelow && (
+          <input value={dividerLabel} onChange={e => setDividerLabel(e.target.value)}
+            placeholder="Label (optional) — e.g. by this weekend" className="inp"
+            style={{ width: '100%', marginTop: 9, fontSize: 13, padding: '9px 11px', background: 'var(--bg)' }} />
+        )}
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <Btn variant="ghost" onClick={onCancel} style={{ flex: 1 }}>Cancel</Btn>
@@ -2928,7 +2951,7 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
 
 // ── Sortable to-do list (pointer-based drag to reorder) ───────
 // columns > 1 renders a grid; hit-testing checks both axes so it works either way.
-function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mode, onEdit, onCancelEdit, onSaveEdit, columns = 1 }) {
+function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mode, onEdit, onCancelEdit, onSaveEdit, columns = 1, showDividers = true }) {
   const [order, setOrder] = React.useState(todos);
   const [dragId, setDragId] = React.useState(null);
   const orderRef = React.useRef(todos);
@@ -2982,16 +3005,32 @@ function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mod
   return (
     <div style={containerStyle}>
       {order.map(t => (
-        <div key={t.id}
-          ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
-          {mode && mode.id === t.id ? (
-            <TodoForm initial={t} onCancel={onCancelEdit} onSave={(nt) => onSaveEdit(t.id, nt)} />
-          ) : (
-            <TodoCard todo={t} dkey={dkey} todayKey={todayKey}
-              addedToday={addedSet.has(t.id)} toast={toast} onEdit={onEdit}
-              dragHandle={startDrag(t.id)} dragging={dragId === t.id} />
+        <React.Fragment key={t.id}>
+          <div ref={el => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}>
+            {mode && mode.id === t.id ? (
+              <TodoForm initial={t} onCancel={onCancelEdit} onSave={(nt) => onSaveEdit(t.id, nt)} />
+            ) : (
+              <TodoCard todo={t} dkey={dkey} todayKey={todayKey}
+                addedToday={addedSet.has(t.id)} toast={toast} onEdit={onEdit}
+                dragHandle={startDrag(t.id)} dragging={dragId === t.id} />
+            )}
+          </div>
+          {showDividers && t.dividerBelow && (
+            <div style={{
+              gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '2px 2px 4px', userSelect: 'none',
+            }}>
+              <span style={{ flex: 1, height: 0, borderTop: '2px dashed var(--border2)' }} />
+              {t.dividerLabel ? (
+                <span style={{
+                  flexShrink: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2,
+                  color: 'var(--text2)', background: 'var(--bg3)', padding: '3px 10px', borderRadius: 999,
+                }}>{t.dividerLabel}</span>
+              ) : null}
+              <span style={{ flex: 1, height: 0, borderTop: '2px dashed var(--border2)' }} />
+            </div>
           )}
-        </div>
+        </React.Fragment>
       ))}
     </div>
   );
@@ -3063,6 +3102,7 @@ function TodoPage({ page, setPage, dkey, toast }) {
         ) : (
           <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
             addedSet={addedSet} dkey={dkey} toast={toast} mode={mode}
+            showDividers={catFilter === 'all'}
             onEdit={(td) => setMode(td)}
             onCancelEdit={() => setMode(null)}
             onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
@@ -3546,6 +3586,7 @@ function DesktopTodo({ device, dkey, toast }) {
           <div style={{ maxWidth: 720 }}>
             <SortableTodoList todos={todos} actions={actions} todayKey={todayKey}
               addedSet={addedSet} dkey={dkey} toast={toast} mode={mode} columns={1}
+              showDividers={catFilter === 'all'}
               onEdit={(td) => setMode(td)}
               onCancelEdit={() => setMode(null)}
               onSaveEdit={(id, nt) => { actions.updateTodo(id, nt); setMode(null); toast('Updated'); }} />
