@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1787802062';</script>
+<script>window.__BUILD='1787851898';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -3621,7 +3621,8 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
       {/* body: list | schedule */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         {/* list column */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* list column stops at its content width so the schedule absorbs the slack */}
+        <div style={{ flex: '0 1 692px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '16px 26px 10px', flexShrink: 0 }}>
             {catObj && <span style={{ width: 10, height: 10, borderRadius: 999, background: catObj.color }} />}
             <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{isAll ? 'All tasks' : catObj?.name}</span>
@@ -3639,8 +3640,12 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
           </div>
         </div>
 
-        {/* schedule column (time view) */}
-        <div style={{ width: dim.schedule, flexShrink: 0, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--bg)' }}>
+        {/* schedule column (time view) — absorbs the slack next to the 640px task
+            list so wide screens don't leave dead space between the two columns */}
+        <div style={{
+          flex: `1 1 ${dim.schedule}px`, minWidth: dim.schedule,
+          borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--bg)',
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 16px 12px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <IconClock size={17} style={{ color: 'var(--text2)' }} />
