@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1787789320';</script>
+<script>window.__BUILD='1787796400';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1629,6 +1629,21 @@ function DateNav({ dkey, setDkey, recordKeys }) {
   );
 }
 
+// split a day's tasks into top-level blocks: standalone tasks, and runs of
+// consecutive tasks that came from the same group
+function groupRuns(list) {
+  const out = [];
+  for (let i = 0; i < list.length;) {
+    const t = list[i];
+    if (t.fromGroupId) {
+      const gid = t.fromGroupId, run = [];
+      while (i < list.length && list[i].fromGroupId === gid) { run.push(list[i]); i++; }
+      out.push({ type: 'group', gid, tasks: run });
+    } else { out.push({ type: 'task', tasks: [t] }); i++; }
+  }
+  return out;
+}
+
 // ── Sortable task list (pointer-based drag to reorder) ────────
 function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLongPressTask }) {
   const [order, setOrder] = React.useState(tasks);
@@ -1639,13 +1654,15 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
   });
   React.useEffect(() => { try { localStorage.setItem('taskmgr_collapsed', JSON.stringify(collapsed)); } catch (e) {} }, [collapsed]);
   const [confirmGroup, setConfirmGroup] = React.useState(null);
+  const [dragBlockId, setDragBlockId] = React.useState(null); // first task id of a dragged group
   const orderRef = React.useRef(tasks);
   const rowRefs = React.useRef(new Map());
+  const blockRefs = React.useRef(new Map());
 
   // resync from props whenever not mid-drag
   React.useEffect(() => {
-    if (dragId == null) { orderRef.current = tasks; setOrder(tasks); }
-  }, [tasks, dragId]);
+    if (dragId == null && dragBlockId == null) { orderRef.current = tasks; setOrder(tasks); }
+  }, [tasks, dragId, dragBlockId]);
 
   const setOrd = (next) => { orderRef.current = next; setOrder(next); };
 
@@ -1684,6 +1701,45 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
     window.addEventListener('pointerup', up);
   };
 
+  // drag a whole group block (all its tasks move together)
+  const startBlockDrag = (anchorId) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragBlockId(anchorId);
+    document.body.style.userSelect = 'none';
+    const elFor = (b) => (b.type === 'group'
+      ? blockRefs.current.get(b.tasks[0].id)
+      : rowRefs.current.get(b.tasks[0].id));
+    const move = (ev) => {
+      const y = ev.clientY;
+      const blks = groupRuns(orderRef.current);
+      const from = blks.findIndex(b => b.tasks[0].id === anchorId);
+      if (from < 0) return;
+      let to = -1;
+      blks.forEach((b, i) => {
+        const el = elFor(b);
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        if (y >= r.top && y <= r.bottom) to = i;
+      });
+      if (to >= 0 && to !== from) {
+        const a = [...blks];
+        const [m] = a.splice(from, 1);
+        a.splice(to, 0, m);
+        setOrd(a.reduce((acc, b) => acc.concat(b.tasks), []));
+      }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.userSelect = '';
+      setDragBlockId(null);
+      actions.reorderTasks(dkey, orderRef.current.map(t => t.id));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   // one draggable task row (ref tracked for pointer hit-testing)
   const taskRow = (t, plain) => (
     <div key={t.id}
@@ -1695,18 +1751,14 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
   );
 
   // group consecutive tasks that came from the same group into a collapsible block
-  const blocks = [];
-  for (let i = 0; i < order.length;) {
-    const t = order[i];
-    if (t.fromGroupId) {
-      const gid = t.fromGroupId, run = [];
-      while (i < order.length && order[i].fromGroupId === gid) { run.push(order[i]); i++; }
-      // prefer the name saved on the task; fall back to the live group, then a generic label
-      const liveName = (data.groups || []).find(g => g.id === gid);
-      const name = t.fromGroupName || (liveName && liveName.name) || 'Group';
-      blocks.push({ type: 'group', gid, name, color: getCat(data, t.category).color, tasks: run });
-    } else { blocks.push({ type: 'task', task: t }); i++; }
-  }
+  const blocks = groupRuns(order).map(b => {
+    if (b.type !== 'group') return { type: 'task', task: b.tasks[0] };
+    const t = b.tasks[0];
+    // prefer the name saved on the task; fall back to the live group, then a generic label
+    const liveName = (data.groups || []).find(g => g.id === b.gid);
+    const name = t.fromGroupName || (liveName && liveName.name) || 'Group';
+    return { type: 'group', gid: b.gid, name, color: getCat(data, t.category).color, tasks: b.tasks };
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1714,10 +1766,24 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
         if (b.type === 'task') return taskRow(b.task, false);
         const isCollapsed = !!collapsed[b.gid];
         const doneCount = b.tasks.filter(t => t.totalBoxes > 0 && t.completedCount >= t.totalBoxes).length;
+        const anchorId = b.tasks[0].id;
+        const blockDragging = dragBlockId === anchorId;
         return (
-          <div key={'g:' + b.gid + ':' + b.tasks[0].id}
-            style={{ border: `1.5px solid ${b.color}`, borderRadius: 10, background: 'var(--bg)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px 7px 11px' }}>
+          <div key={'g:' + b.gid + ':' + anchorId}
+            ref={el => { if (el) blockRefs.current.set(anchorId, el); else blockRefs.current.delete(anchorId); }}
+            style={{
+              border: `1.5px solid ${blockDragging ? 'var(--accent)' : b.color}`, borderRadius: 10, background: 'var(--bg)',
+              boxShadow: blockDragging ? '0 10px 24px rgba(0,0,0,0.14)' : 'none',
+              transition: 'box-shadow .14s, border-color .14s',
+            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px 7px 8px' }}>
+              <span onPointerDown={startBlockDrag(anchorId)} title="Drag to move this group"
+                style={{
+                  cursor: 'grab', color: 'var(--muted)', display: 'inline-flex', flexShrink: 0,
+                  touchAction: 'none', padding: '2px 0',
+                }}>
+                <IconGrip size={16} />
+              </span>
               <div onClick={() => setCollapsed(c => ({ ...c, [b.gid]: !c[b.gid] }))}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, cursor: 'pointer' }}>
                 <IconChevron size={15} style={{ transform: isCollapsed ? 'none' : 'rotate(90deg)', transition: 'transform .15s', color: 'var(--muted)', flexShrink: 0 }} />
