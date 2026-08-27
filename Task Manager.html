@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1787796400';</script>
+<script>window.__BUILD='1787802062';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -76,6 +76,10 @@
   .task-card:hover .box-ctrl { opacity: 1; }
   .del-btn { opacity: 0; transition: opacity .14s, background .14s, color .14s; }
   .task-card:hover .del-btn { opacity: 1; }
+  /* touch devices never hover, so these would stay invisible — always show them */
+  @media (hover: none) {
+    .box-ctrl, .del-btn { opacity: 1; }
+  }
 
   /* app-like UI: disable text selection / long-press callout everywhere except
      real form fields, so long-press opens our menus instead of selecting text (iOS) */
@@ -282,10 +286,18 @@ function seed() {
 }
 
 const LS_KEY = 'taskmgr_v4';
+// strip fields left behind by removed features so old rows don't carry dead data
+function normalise(d) {
+  if (d && Array.isArray(d.todos)) {
+    d.todos.forEach(t => { delete t.dividerBelow; delete t.dividerLabel; });
+  }
+  return d;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return normalise(JSON.parse(raw));
   } catch (e) {}
   const s = seed();
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
@@ -331,7 +343,7 @@ function useStoreProvider() {
         const remoteRev = new Date(row.updated_at).getTime();
         if (remoteRev > localRev) {
           applyingRemoteRef.current = true;
-          setData(row.data);
+          setData(normalise(row.data));
           changed = true;
           try { localStorage.setItem(REV_KEY, String(remoteRev)); } catch (e) {}
         }
@@ -525,7 +537,13 @@ function useStoreProvider() {
         if (d.categories.length <= 1) return;
         const fb = fallbackId || (d.categories.find(c => c.id !== id) || {}).id;
         Object.values(d.days).forEach(arr => arr.forEach(t => { if (t.category === id) t.category = fb; }));
-        d.groups.forEach(g => g.tasks.forEach(t => { if (t.category === id) t.category = fb; }));
+        d.groups.forEach(g => {
+          if (g.category === id) g.category = fb;
+          g.tasks.forEach(t => { if (t.category === id) t.category = fb; });
+        });
+        // to-dos may be uncategorised, so drop the reference instead of reassigning —
+        // otherwise they'd keep a dead id and match no filter at all
+        (d.todos || []).forEach(t => { if (t.category === id) t.category = null; });
         d.categories = d.categories.filter(c => c.id !== id);
       });
     },
@@ -535,9 +553,12 @@ function useStoreProvider() {
 }
 
 // usage count for a category across all stored days
+// how much a category is referenced: day tasks, group tasks and to-dos
 function categoryUsage(data, id) {
   let n = 0;
   Object.values(data.days || {}).forEach(arr => arr.forEach(t => { if (t.category === id) n++; }));
+  (data.groups || []).forEach(g => (g.tasks || []).forEach(t => { if (t.category === id) n++; }));
+  (data.todos || []).forEach(t => { if (t.category === id) n++; });
   return n;
 }
 function getCat(data, id) {
@@ -1135,7 +1156,7 @@ function CategoryRow({ cat, index, total }) {
         <div style={{ marginTop: 8, padding: '9px 10px', background: 'var(--bg2)', borderRadius: 8 }}>
           <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8, lineHeight: 1.4 }}>
             {usage > 0
-              ? `Delete “${cat.name}”? ${usage} task${usage > 1 ? 's' : ''} will move to “${fallback.name}”.`
+              ? `Delete “${cat.name}”? ${usage} item${usage > 1 ? 's' : ''} use it — tasks move to “${fallback.name}”, to-dos become uncategorised.`
               : `Delete “${cat.name}”?`}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -1191,7 +1212,7 @@ function CategoryActionSheet({ open, catId, onClose, onManageAll }) {
           <div style={{ padding: '12px 13px', background: 'var(--bg2)', borderRadius: 10 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text2)', marginBottom: 11, lineHeight: 1.45 }}>
               {usage > 0
-                ? `Delete “${cat.name}”? ${usage} task${usage > 1 ? 's' : ''} will move to “${fallback.name}”.`
+                ? `Delete “${cat.name}”? ${usage} item${usage > 1 ? 's' : ''} use it — tasks move to “${fallback.name}”, to-dos become uncategorised.`
                 : `Delete “${cat.name}”? This can’t be undone.`}
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -1652,7 +1673,14 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
   const [collapsed, setCollapsed] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('taskmgr_collapsed') || '{}') || {}; } catch (e) { return {}; }
   });
-  React.useEffect(() => { try { localStorage.setItem('taskmgr_collapsed', JSON.stringify(collapsed)); } catch (e) {} }, [collapsed]);
+  // persist only the groups that are actually collapsed, so this can't grow forever
+  React.useEffect(() => {
+    try {
+      const on = {};
+      Object.keys(collapsed).forEach(k => { if (collapsed[k]) on[k] = true; });
+      localStorage.setItem('taskmgr_collapsed', JSON.stringify(on));
+    } catch (e) {}
+  }, [collapsed]);
   const [confirmGroup, setConfirmGroup] = React.useState(null);
   const [dragBlockId, setDragBlockId] = React.useState(null); // first task id of a dragged group
   const orderRef = React.useRef(tasks);
@@ -3388,7 +3416,7 @@ function GroupsPage({ page, setPage, dkey, toast }) {
           <Btn variant="primary" size="sm" onClick={() => setEditing('new')}><IconPlus size={15} /> New</Btn>
         } />
       </StickyHeader>
-      <div style={{ padding: '14px 14px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: '14px 14px calc(80px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ fontSize: 12.5, color: 'var(--text2)', padding: '0 2px 2px' }}>
           Bundles of tasks you can add to a day all at once.
         </div>
