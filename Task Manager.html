@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1787567790';</script>
+<script>window.__BUILD='1787789320';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1605,6 +1605,21 @@ function DateNav({ dkey, setDkey, recordKeys }) {
         <IconBtn size={38} onClick={() => setDkey(dateKey(addDays(d, 1)))} title="Next day"
           style={{ border: '1px solid var(--border)' }}><IconArrowRight size={18} /></IconBtn>
       </div>
+
+      {/* only shown when you're away from today, so it costs no space otherwise */}
+      {dkey !== todayKey && (
+        <button type="button" onClick={() => setDkey(todayKey)}
+          style={{
+            width: '100%', marginTop: 8, display: 'inline-flex', alignItems: 'center',
+            justifyContent: 'center', gap: 6, cursor: 'pointer',
+            border: '1px solid var(--accent)', borderRadius: 999, background: 'var(--accent-soft)',
+            color: 'var(--accent)', fontFamily: 'inherit', fontWeight: 600, fontSize: 12.5,
+            padding: '7px 12px', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation',
+          }}>
+          <IconReset size={14} /> Back to today
+        </button>
+      )}
+
       {calOpen && (
         <CalendarPopover selected={dkey} recordKeys={recordKeys}
           onSelect={(k) => { setDkey(k); setCalOpen(false); }}
@@ -3495,7 +3510,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
           </div>
           <IconBtn size={36} onClick={() => setDkey(dateKey(addDays(d, 1)))} title="Next day" style={{ border: '1px solid var(--border)' }}><IconArrowRight size={17} /></IconBtn>
           {dkey !== todayKey && (
-            <Btn variant="ghost" size="sm" onClick={() => setDkey(todayKey)}>Today</Btn>
+            <Btn variant="accentGhost" size="sm" onClick={() => setDkey(todayKey)}><IconReset size={14} /> Back to today</Btn>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
