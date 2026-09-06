@@ -1,0 +1,13 @@
+{
+  "name": "kotsu-kotsu",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build tooling for Kotsu-Kotsu (precompiles project/*.jsx into the single-file app).",
+  "scripts": {
+    "build": "bash scripts/build.sh"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-react": "^7.26.3"
+  }
+}
