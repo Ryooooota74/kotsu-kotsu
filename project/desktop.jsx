@@ -136,7 +136,8 @@ function DTPageHead({ title, sub, actions }) {
 }
 
 // ── Tasks (list + schedule) ───────────────────────────────────
-function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, onApplyGroup, onManage, onResetDay, onEditEvent, onEditTask, onEditCard, onNewEvent }) {
+function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, onApplyGroup, onManage, onResetDay, onEditEvent, onEditTask, onEditCard, onNewEvent, toast }) {
+  const backup = useBackup(toast);
   const dim = DT_DIMS[device];
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
@@ -175,6 +176,8 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
           <HeaderMenu items={[
             { label: 'Apply group', icon: <IconPlus size={16} />, onClick: onApplyGroup },
             { label: 'Manage lists', icon: <IconPencil size={16} />, onClick: onManage },
+            { label: 'Save backup', icon: <IconDownload size={16} />, onClick: backup.exportNow, sep: true },
+            { label: 'Restore backup…', icon: <IconUpload size={16} />, onClick: backup.pickImport },
             { label: 'Reset day', icon: <IconReset size={16} />, onClick: onResetDay, sep: true },
             { label: 'Delete all tasks', icon: <IconTrash size={16} />, onClick: () => setConfirmClear(true), danger: true },
           ]} />
@@ -226,6 +229,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
         message={`Delete all ${all.length} task${all.length === 1 ? '' : 's'} for this day? This can’t be undone.`}
         confirmLabel="Delete all" onConfirm={() => { actions.clearDay(dkey); setConfirmClear(false); }}
         onClose={() => setConfirmClear(false)} />
+      {backup.ui}
     </div>
   );
 }
@@ -432,7 +436,7 @@ function DesktopApp({ device, page, setPage, dkey, setDkey, toast }) {
             onAdd={(c) => { setAddCat(c || null); setAddOpen(true); }}
             onApplyGroup={() => setApplyOpen(true)} onManage={() => setManageOpen(true)}
             onResetDay={() => actions.resetDay(dkey)}
-            onEditEvent={(id) => setEvSheet(id)} onEditTask={(id) => setTaskSheet(id)} onEditCard={(id) => setEditId(id)} onNewEvent={() => setEvSheet('new')} />
+            onEditEvent={(id) => setEvSheet(id)} onEditTask={(id) => setTaskSheet(id)} onEditCard={(id) => setEditId(id)} onNewEvent={() => setEvSheet('new')} toast={toast} />
         )}
         {page === 'todo' && <DesktopTodo device={device} dkey={dkey} toast={toast} />}
         {page === 'calendar' && (

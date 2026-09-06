@@ -89,7 +89,7 @@ function PhoneShell({ store, page, setPage, dkey, setDkey, toast }) {
         {page === 'tasks' && (
           <TasksPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey}
             onAdd={(c) => { setAddCat(c || null); setAddOpen(true); }} onApplyGroup={() => setApplyOpen(true)}
-            onEditTask={(id) => setEditId(id)} />
+            onEditTask={(id) => setEditId(id)} toast={toast} />
         )}
         {page === 'todo' && <TodoPage page={page} setPage={setPage} dkey={dkey} toast={toast} />}
         {page === 'calendar' && <CalendarPage page={page} setPage={setPage} dkey={dkey} setDkey={setDkey} />}

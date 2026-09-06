@@ -67,8 +67,11 @@ const MarkGroups = ({ size = 64 }) => (
   </svg>
 );
 
+const IconDownload = (p) => (<svg {...Ic(p)}><path d="M12 3v12M7.5 10.5L12 15l4.5-4.5M4.5 20h15" /></svg>);
+const IconUpload = (p) => (<svg {...Ic(p)}><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M4.5 20h15" /></svg>);
+
 Object.assign(window, {
-  IconChevron, IconArrowLeft, IconArrowRight, IconPlus, IconMinus, IconClose,
+  IconChevron, IconDownload, IconUpload, IconArrowLeft, IconArrowRight, IconPlus, IconMinus, IconClose,
   IconCheck, IconReset, IconCalendar, IconPencil, IconTrash, IconCaretUp, IconCaretDown, IconGrip, IconMenu,
   IconList, IconInbox, IconLayers, IconClock,
   MarkTasks, MarkProjects, MarkGroups,

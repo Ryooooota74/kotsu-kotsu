@@ -576,7 +576,8 @@ function HeaderMenu({ items }) {
 }
 
 // ── Tasks page ────────────────────────────────────────────────
-function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTask }) {
+function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTask, toast }) {
+  const backup = useBackup(toast);
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
   const [cat, setCat] = React.useState(() => (cats[0] ? cats[0].id : 'all'));
@@ -604,6 +605,8 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
           <HeaderMenu items={[
             { label: 'Apply group', icon: <IconPlus size={16} />, onClick: () => onApplyGroup() },
             { label: 'Manage categories', icon: <IconPencil size={16} />, onClick: () => setManageOpen(true) },
+            { label: 'Save backup', icon: <IconDownload size={16} />, onClick: backup.exportNow, sep: true },
+            { label: 'Restore backup…', icon: <IconUpload size={16} />, onClick: backup.pickImport },
             { label: 'Reset day', icon: <IconReset size={16} />, onClick: () => actions.resetDay(dkey), sep: true },
             { label: 'Delete all tasks', icon: <IconTrash size={16} />, onClick: () => setConfirmClear(true), danger: true },
           ]} />
@@ -650,6 +653,7 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
         message={`Delete all ${all.length} task${all.length === 1 ? '' : 's'} for this day? This can’t be undone.`}
         confirmLabel="Delete all" onConfirm={() => { actions.clearDay(dkey); setConfirmClear(false); }}
         onClose={() => setConfirmClear(false)} />
+      {backup.ui}
     </div>
   );
 }

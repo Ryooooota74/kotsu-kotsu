@@ -219,6 +219,72 @@ function Sheet({ open, onClose, children, maxWidth = 480 }) {
   );
 }
 
+// ── backup / restore ──────────────────────────────────────────
+// Sync is last-write-wins across devices, so a bad merge can wipe real work. This
+// gives a plain JSON file you can keep, and a way to put it back.
+function useBackup(toast) {
+  const { data, actions } = React.useContext(StoreContext);
+  const inputRef = React.useRef(null);
+  const [pending, setPending] = React.useState(null); // parsed file awaiting confirmation
+
+  const exportNow = () => {
+    try {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kotsu-kotsu-' + dateKey(new Date()) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      toast('Backup saved');
+    } catch (e) {
+      toast('Could not save the backup');
+    }
+  };
+
+  const pickImport = () => { if (inputRef.current) inputRef.current.click(); };
+
+  const onFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = ''; // let the same file be picked again
+    if (!f) return;
+    const r = new FileReader();
+    r.onerror = () => toast('Could not read that file');
+    r.onload = () => {
+      let obj = null;
+      try { obj = JSON.parse(String(r.result)); } catch (err) { obj = null; }
+      if (!obj || typeof obj !== 'object' || (!obj.days && !obj.todos && !obj.groups)) {
+        toast('That file isn’t a Kotsu-Kotsu backup');
+        return;
+      }
+      setPending(obj);
+    };
+    r.readAsText(f);
+  };
+
+  const counts = pending ? [
+    Object.keys(pending.days || {}).length + ' days',
+    (pending.todos || []).length + ' to-dos',
+    (pending.groups || []).length + ' groups',
+  ].join(' · ') : '';
+
+  const ui = (
+    <React.Fragment>
+      <input ref={inputRef} type="file" accept="application/json,.json"
+        onChange={onFile} style={{ display: 'none' }} />
+      <ConfirmSheet open={!!pending} title="Restore backup"
+        message={'Replace everything on this device — and in the cloud — with this file? (' + counts + ') This can’t be undone.'}
+        confirmLabel="Restore"
+        onConfirm={() => { actions.replaceAll(pending); setPending(null); toast('Backup restored'); }}
+        onClose={() => setPending(null)} />
+    </React.Fragment>
+  );
+
+  return { exportNow, pickImport, ui };
+}
+
 Object.assign(window, {
-  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet,
+  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet, useBackup,
 });

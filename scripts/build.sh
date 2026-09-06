@@ -160,7 +160,7 @@ cat > "$TMP" <<'HTMLHEAD'
   <script>
 HTMLHEAD
 
-FILES="store.jsx icons.jsx components.jsx header.jsx categories.jsx tasks.jsx daytimeline.jsx calendar.jsx addtask.jsx projects.jsx groups.jsx desktop.jsx ios-frame.jsx tweaks-panel.jsx app.jsx"
+FILES="store.jsx icons.jsx components.jsx header.jsx categories.jsx tasks.jsx daytimeline.jsx calendar.jsx addtask.jsx projects.jsx groups.jsx desktop.jsx tweaks-panel.jsx app.jsx"
 
 # The JSX is compiled here at build time rather than by Babel in the browser:
 # it drops a ~640KB download and the per-load transpile cost on every device.
@@ -189,6 +189,15 @@ ROOT="$ROOT" JSXTMP="$JSXTMP" node -e '
 rm -f "$JSXTMP"
 
 cat >> "$TMP" <<'HTMLFOOT'
+  </script>
+
+  <script>
+    /* Offline: cache the shell so the app still opens with no network. */
+    if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
   </script>
 
   <script>
@@ -251,10 +260,13 @@ cat >> "$TMP" <<'HTMLFOOT'
 </html>
 HTMLFOOT
 
-# stamp a build id so deployed clients can detect a new version and self-update
-sed -i '' "s/KOTSU_BUILD_PLACEHOLDER/$(date +%s)/g" "$TMP"
+# stamp a build id so deployed clients can detect a new version and self-update.
+# The same id names the service-worker cache, so each build gets a fresh one.
+BUILD_ID="$(date +%s)"
+sed -i '' "s/KOTSU_BUILD_PLACEHOLDER/$BUILD_ID/g" "$TMP"
+sed "s/KOTSU_BUILD_PLACEHOLDER/$BUILD_ID/g" "$ROOT/scripts/sw.template.js" > "$ROOT/sw.js"
 
 cp "$TMP" "$ROOT/index.html"
 cp "$TMP" "$ROOT/Task Manager.html"
 rm -f "$TMP"
-echo "Built: index.html and 'Task Manager.html' ($(wc -l < "$ROOT/index.html") lines each)"
+echo "Built: index.html, 'Task Manager.html' ($(wc -l < "$ROOT/index.html") lines each) + sw.js @ $BUILD_ID"

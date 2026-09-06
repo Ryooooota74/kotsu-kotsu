@@ -189,10 +189,39 @@ function useStoreProvider() {
   const hydratedRef = React.useRef(!SYNC_ENABLED); // gate pushes until first pull resolves
   const applyingRemoteRef = React.useRef(false);   // skip the push triggered by an incoming pull
   const pushTimer = React.useRef(null);
+  const pendingRef = React.useRef(null);   // { data, rev } edited locally but not yet in the cloud
+  const retryTimer = React.useRef(null);
+  const retryDelay = React.useRef(0);
+  const pullingRef = React.useRef(false);
+  const lastPullAt = React.useRef(0);
+
+  // send whatever is queued; on failure keep it queued and retry with backoff, so a
+  // change made while offline still reaches the cloud instead of being dropped
+  const flush = React.useCallback(async () => {
+    clearTimeout(retryTimer.current);
+    const p = pendingRef.current;
+    if (!SYNC_ENABLED || !p) return;
+    setSyncStatus('saving');
+    try {
+      const { error } = await sbClient()
+        .from(SYNC_TABLE).upsert({ id: SYNC_ROW, data: p.data, updated_at: new Date(p.rev).toISOString() });
+      if (error) throw error;
+      retryDelay.current = 0;
+      // a newer edit may have queued while we were in flight — keep that one
+      if (pendingRef.current === p) { pendingRef.current = null; setSyncStatus('synced'); }
+    } catch (e) {
+      console.warn('[sync] push failed, will retry', e && e.message);
+      setSyncStatus('error');
+      retryDelay.current = Math.min(retryDelay.current ? retryDelay.current * 2 : 3000, 60000);
+      retryTimer.current = setTimeout(flush, retryDelay.current);
+    }
+  }, []);
 
   // pull from the cloud; remote is authoritative when it's newer than our local copy
   const pull = React.useCallback(async () => {
-    if (!SYNC_ENABLED) return { ok: false, changed: false };
+    if (!SYNC_ENABLED || pullingRef.current) return { ok: false, changed: false };
+    pullingRef.current = true;
+    lastPullAt.current = Date.now();
     setSyncStatus('connecting');
     let changed = false;
     try {
@@ -203,25 +232,57 @@ function useStoreProvider() {
         const localRev = Number(localStorage.getItem(REV_KEY) || 0);
         const remoteRev = new Date(row.updated_at).getTime();
         if (remoteRev > localRev) {
+          // remote is newer than anything we have queued — drop the stale pending push
+          // so it can't overwrite the other device's more recent work
+          clearTimeout(pushTimer.current);
+          clearTimeout(retryTimer.current);
+          pendingRef.current = null;
           applyingRemoteRef.current = true;
           setData(normalise(row.data));
           changed = true;
           try { localStorage.setItem(REV_KEY, String(remoteRev)); } catch (e) {}
         }
       }
-      setSyncStatus('synced');
+      setSyncStatus(pendingRef.current ? 'saving' : 'synced');
+      if (pendingRef.current) flush();
       return { ok: true, changed };
     } catch (e) {
       console.warn('[sync] pull failed', e && e.message);
       setSyncStatus('error');
       return { ok: false, changed: false };
     } finally {
+      pullingRef.current = false;
       hydratedRef.current = true;
     }
-  }, []);
+  }, [flush]);
 
   // initial pull on mount
   React.useEffect(() => { pull(); }, [pull]);
+
+  // The app stays open for days on a phone home screen. Without this, coming back to
+  // it shows a stale day and the first edit overwrites whatever the other device did.
+  React.useEffect(() => {
+    if (!SYNC_ENABLED) return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastPullAt.current < 10000) { if (pendingRef.current) flush(); return; }
+      pull();
+    };
+    const onOnline = () => {
+      retryDelay.current = 0;
+      clearTimeout(retryTimer.current);
+      // pull() flushes on success; if the pull itself fails, still try the queued push
+      pull().then((r) => { if (!r.ok && pendingRef.current) flush(); });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    window.addEventListener('online', onOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [pull, flush]);
 
   // persist to localStorage always; debounce-push to the cloud once hydrated
   React.useEffect(() => {
@@ -230,20 +291,13 @@ function useStoreProvider() {
     if (applyingRemoteRef.current) { applyingRemoteRef.current = false; return; }
     const rev = Date.now();
     try { localStorage.setItem(REV_KEY, String(rev)); } catch (e) {}
+    pendingRef.current = { data, rev };
     setSyncStatus('saving');
     clearTimeout(pushTimer.current);
-    pushTimer.current = setTimeout(async () => {
-      try {
-        const { error } = await sbClient()
-          .from(SYNC_TABLE).upsert({ id: SYNC_ROW, data, updated_at: new Date(rev).toISOString() });
-        if (error) throw error;
-        setSyncStatus('synced');
-      } catch (e) {
-        console.warn('[sync] push failed', e && e.message);
-        setSyncStatus('error');
-      }
-    }, 700);
-  }, [data]);
+    clearTimeout(retryTimer.current);
+    retryDelay.current = 0;
+    pushTimer.current = setTimeout(flush, 700);
+  }, [data, flush]);
 
   // mutate(draft => {...}) — clones, applies, sets
   const mutate = React.useCallback((fn) => {
@@ -331,6 +385,19 @@ function useStoreProvider() {
         d.days[key] = arr.map(t => (idSet.has(t.id) ? queue[qi++] : t));
       });
     },
+    // wholesale replace (restoring a backup file). Missing sections fall back to
+    // empty rather than the seed, so a partial file can't resurrect demo data.
+    replaceAll(next) {
+      const clean = normalise({
+        categories: Array.isArray(next.categories) ? next.categories : [],
+        days: (next.days && typeof next.days === 'object') ? next.days : {},
+        events: Array.isArray(next.events) ? next.events : [],
+        todos: Array.isArray(next.todos) ? next.todos : [],
+        groups: Array.isArray(next.groups) ? next.groups : [],
+      });
+      setData(clean);
+    },
+
     resetDay(key) {
       mutate(d => {
         (d.days[key] || []).forEach(t => {

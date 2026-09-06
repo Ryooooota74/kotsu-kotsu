@@ -1,2 +1,9 @@
 node_modules/
-_preview_nosync.html
+_preview_nosync*.html
+
+# Built locally for double-clicking; index.html is the tracked/deployed build.
+Task Manager.html
+
+# Local editor/tooling scratch
+.claude/
+chats/
