@@ -108,6 +108,40 @@ or just re-paste them into the generated HTML.
 
 ---
 
+## Recommended: let the database stamp `updated_at`
+
+Which device's copy wins is decided by comparing `updated_at`. If each device
+writes that column from *its own* clock, a device whose clock is wrong makes its
+edits look older than they are — and the other devices then quietly ignore them.
+
+Run this once in the SQL editor so Postgres stamps the column itself:
+
+```sql
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
+
+drop trigger if exists app_state_set_updated_at on public.app_state;
+
+create trigger app_state_set_updated_at
+  before insert or update on public.app_state
+  for each row execute function public.set_updated_at();
+```
+
+Every comparison is then server-clock vs server-clock and device clocks stop
+mattering.
+
+**This is optional.** The app sends its write without `updated_at`, checks
+whether the row actually moved forward, and — if the trigger isn't there — falls
+back to sending its own timestamp (logging `[sync] database is not stamping
+updated_at` once). Sync keeps working either way; the trigger just removes the
+clock-skew failure mode.
+
+---
+
 ## Troubleshooting
 
 - **Badge says "Offline" (red):** the URL/key is wrong, or the table/policies/GRANT
@@ -119,6 +153,12 @@ or just re-paste them into the generated HTML.
     GRANTs are two separate checks — you need both).
 - **A device shows old data:** it had newer *local* edits than the cloud, so it
   kept them (last-write-wins by timestamp). Make a tiny change on it to push them
-  up, or refresh the other device.
+  up, or refresh the other device. If this keeps happening on one device, check
+  its clock and install the `updated_at` trigger above.
+- **A device never seems to send anything:** if it started with no local data
+  (new device, cleared site data, private window) it deliberately refuses to
+  push until it has successfully read the cloud at least once — otherwise the
+  built-in demo tasks would overwrite your real data. Fix the connection and it
+  picks up your data on the next retry.
 - **Reset everything:** delete the `app_state` row in Supabase → Table Editor,
   and clear the site data in each browser.

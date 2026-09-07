@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1788741426';</script>
+<script>window.__BUILD='1788742040';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -505,6 +505,13 @@ const SYNC_ROW = SYNC_CFG.rowId || 'main';
 const SYNC_TABLE = SYNC_CFG.table || 'app_state';
 const REV_KEY = 'taskmgr_rev';
 let _sbClient = null;
+function readRev() {
+  try {
+    return Number(localStorage.getItem(REV_KEY) || 0) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
 function sbClient() {
   if (!SYNC_ENABLED) return null;
   if (!_sbClient) _sbClient = window.supabase.createClient(SYNC_CFG.url, SYNC_CFG.anonKey);
@@ -523,21 +530,36 @@ function useStoreProvider() {
   const lastPullAt = React.useRef(0);
   const pullRetryTimer = React.useRef(null);
   const pullRetryDelay = React.useRef(0);
+  const serverStamps = React.useRef(true);
+  const lastServerRev = React.useRef(readRev());
   const flush = React.useCallback(async () => {
     clearTimeout(retryTimer.current);
     const p = pendingRef.current;
     if (!SYNC_ENABLED || !p) return;
     setSyncStatus('saving');
     try {
-      const {
-        error
-      } = await sbClient().from(SYNC_TABLE).upsert({
+      const row = {
         id: SYNC_ROW,
-        data: p.data,
-        updated_at: new Date(p.rev).toISOString()
-      });
+        data: p.data
+      };
+      if (!serverStamps.current) row.updated_at = new Date(p.rev).toISOString();
+      const {
+        data: saved,
+        error
+      } = await sbClient().from(SYNC_TABLE).upsert(row).select('updated_at');
       if (error) throw error;
       retryDelay.current = 0;
+      const stamped = saved && saved[0] && saved[0].updated_at ? new Date(saved[0].updated_at).getTime() : 0;
+      if (stamped > lastServerRev.current) {
+        lastServerRev.current = stamped;
+        try {
+          localStorage.setItem(REV_KEY, String(stamped));
+        } catch (e) {}
+      } else if (serverStamps.current) {
+        serverStamps.current = false;
+        console.warn('[sync] database is not stamping updated_at; using the client clock');
+        return flush();
+      }
       if (pendingRef.current === p) {
         pendingRef.current = null;
         setSyncStatus('synced');
@@ -567,6 +589,7 @@ function useStoreProvider() {
       if (row && row.data) {
         const localRev = Number(localStorage.getItem(REV_KEY) || 0);
         const remoteRev = new Date(row.updated_at).getTime();
+        if (remoteRev > lastServerRev.current) lastServerRev.current = remoteRev;
         if (remoteRev > localRev) {
           clearTimeout(pushTimer.current);
           clearTimeout(retryTimer.current);
@@ -574,6 +597,7 @@ function useStoreProvider() {
           applyingRemoteRef.current = true;
           setData(normalise(row.data));
           changed = true;
+          lastServerRev.current = remoteRev;
           try {
             localStorage.setItem(REV_KEY, String(remoteRev));
           } catch (e) {}
@@ -642,7 +666,7 @@ function useStoreProvider() {
       applyingRemoteRef.current = false;
       return;
     }
-    const rev = Date.now();
+    const rev = Math.max(Date.now(), lastServerRev.current + 1);
     try {
       localStorage.setItem(REV_KEY, String(rev));
     } catch (e) {}
@@ -1576,6 +1600,145 @@ function Sheet({
     }
   })), children));
 }
+function CrashScreen({
+  error
+}) {
+  const [saved, setSaved] = React.useState(false);
+  const raw = (() => {
+    try {
+      return localStorage.getItem('taskmgr_v4');
+    } catch (e) {
+      return null;
+    }
+  })();
+  const save = () => {
+    try {
+      const blob = new Blob([raw || '{}'], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kotsu-kotsu-rescue.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setSaved(true);
+    } catch (e) {}
+  };
+  const btn = {
+    fontFamily: 'inherit',
+    fontSize: 13.5,
+    fontWeight: 600,
+    padding: '10px 16px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    border: '1px solid var(--border2)',
+    background: 'var(--bg)',
+    color: 'var(--text)'
+  };
+  return React.createElement("div", {
+    style: {
+      position: 'fixed',
+      inset: 0,
+      background: 'var(--bg)',
+      color: 'var(--text)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      fontFamily: "'Hanken Grotesk', system-ui, -apple-system, sans-serif"
+    }
+  }, React.createElement("div", {
+    style: {
+      maxWidth: 460,
+      width: '100%'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 19,
+      fontWeight: 700,
+      letterSpacing: -0.3,
+      marginBottom: 8
+    }
+  }, "Something went wrong"), React.createElement("div", {
+    style: {
+      fontSize: 13.5,
+      color: 'var(--text2)',
+      lineHeight: 1.55,
+      marginBottom: 18
+    }
+  }, "Your tasks are still saved on this device \u2014 nothing has been deleted. Save a copy before reloading, just in case."), React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 18
+    }
+  }, React.createElement("button", {
+    type: "button",
+    onClick: save,
+    style: {
+      ...btn,
+      borderColor: 'var(--accent)',
+      color: 'var(--accent)'
+    }
+  }, saved ? 'Saved ✓' : 'Save my data'), React.createElement("button", {
+    type: "button",
+    onClick: () => location.reload(),
+    style: btn
+  }, "Reload"), React.createElement("button", {
+    type: "button",
+    style: btn,
+    onClick: () => {
+      try {
+        localStorage.removeItem('taskmgr_page');
+        localStorage.removeItem('taskmgr_collapsed');
+      } catch (e) {}
+      location.reload();
+    }
+  }, "Reset the view")), React.createElement("details", {
+    style: {
+      fontSize: 12,
+      color: 'var(--muted)'
+    }
+  }, React.createElement("summary", {
+    style: {
+      cursor: 'pointer'
+    }
+  }, "Error details"), React.createElement("pre", {
+    style: {
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+      marginTop: 8,
+      fontSize: 11.5,
+      lineHeight: 1.5,
+      color: 'var(--text2)'
+    }
+  }, String(error && (error.stack || error.message) || error)))));
+}
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      error: null
+    };
+  }
+  static getDerivedStateFromError(error) {
+    return {
+      error
+    };
+  }
+  componentDidCatch(error, info) {
+    console.error('[crash]', error, info && info.componentStack);
+  }
+  render() {
+    return this.state.error ? React.createElement(CrashScreen, {
+      error: this.state.error
+    }) : this.props.children;
+  }
+}
 function useBackup(toast) {
   const {
     data,
@@ -1662,7 +1825,9 @@ Object.assign(window, {
   Counter,
   CheckboxRow,
   Sheet,
-  useBackup
+  useBackup,
+  AppErrorBoundary,
+  CrashScreen
 });
 const PAGES = [{
   key: 'tasks',
@@ -8907,7 +9072,7 @@ function App() {
     onChange: v => setTweak('checkStyle', v)
   }))));
 }
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App, null));  </script>
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(AppErrorBoundary, null, React.createElement(App, null)));  </script>
 
   <script>
     /* Offline: cache the shell so the app still opens with no network. */

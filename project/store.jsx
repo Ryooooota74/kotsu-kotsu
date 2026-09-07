@@ -180,6 +180,10 @@ const SYNC_ROW = SYNC_CFG.rowId || 'main';
 const SYNC_TABLE = SYNC_CFG.table || 'app_state';
 const REV_KEY = 'taskmgr_rev';
 let _sbClient = null;
+function readRev() {
+  try { return Number(localStorage.getItem(REV_KEY) || 0) || 0; } catch (e) { return 0; }
+}
+
 function sbClient() {
   if (!SYNC_ENABLED) return null;
   if (!_sbClient) _sbClient = window.supabase.createClient(SYNC_CFG.url, SYNC_CFG.anonKey);
@@ -200,6 +204,12 @@ function useStoreProvider() {
   const lastPullAt = React.useRef(0);
   const pullRetryTimer = React.useRef(null);
   const pullRetryDelay = React.useRef(0);
+  // Whether the database stamps updated_at itself (see SYNC_SETUP.md). Server-side
+  // stamps make every rev comparison server-vs-server, so a device whose clock is
+  // wrong can't make its edits look older than they are. Falls back to the client
+  // clock automatically if the trigger isn't installed.
+  const serverStamps = React.useRef(true);
+  const lastServerRev = React.useRef(readRev());
 
   // send whatever is queued; on failure keep it queued and retry with backoff, so a
   // change made while offline still reaches the cloud instead of being dropped
@@ -209,10 +219,29 @@ function useStoreProvider() {
     if (!SYNC_ENABLED || !p) return;
     setSyncStatus('saving');
     try {
-      const { error } = await sbClient()
-        .from(SYNC_TABLE).upsert({ id: SYNC_ROW, data: p.data, updated_at: new Date(p.rev).toISOString() });
+      const row = { id: SYNC_ROW, data: p.data };
+      if (!serverStamps.current) row.updated_at = new Date(p.rev).toISOString();
+      const { data: saved, error } = await sbClient()
+        .from(SYNC_TABLE).upsert(row).select('updated_at');
       if (error) throw error;
       retryDelay.current = 0;
+
+      // Did the row actually move forward on the server? Compare against the last
+      // value the *server* gave us — comparing against our own clock would misfire
+      // on exactly the skewed devices this is meant to protect.
+      const stamped = saved && saved[0] && saved[0].updated_at ? new Date(saved[0].updated_at).getTime() : 0;
+      if (stamped > lastServerRev.current) {
+        lastServerRev.current = stamped;
+        try { localStorage.setItem(REV_KEY, String(stamped)); } catch (e) {}
+      } else if (serverStamps.current) {
+        // the row came back with a stale (or missing) updated_at, so the database
+        // isn't stamping it — go back to sending our own timestamp, or pulls on the
+        // other devices would never see this write as newer
+        serverStamps.current = false;
+        console.warn('[sync] database is not stamping updated_at; using the client clock');
+        return flush();
+      }
+
       // a newer edit may have queued while we were in flight — keep that one
       if (pendingRef.current === p) { pendingRef.current = null; setSyncStatus('synced'); }
     } catch (e) {
@@ -237,6 +266,7 @@ function useStoreProvider() {
       if (row && row.data) {
         const localRev = Number(localStorage.getItem(REV_KEY) || 0);
         const remoteRev = new Date(row.updated_at).getTime();
+        if (remoteRev > lastServerRev.current) lastServerRev.current = remoteRev;
         if (remoteRev > localRev) {
           // remote is newer than anything we have queued — drop the stale pending push
           // so it can't overwrite the other device's more recent work
@@ -246,6 +276,7 @@ function useStoreProvider() {
           applyingRemoteRef.current = true;
           setData(normalise(row.data));
           changed = true;
+          lastServerRev.current = remoteRev;
           try { localStorage.setItem(REV_KEY, String(remoteRev)); } catch (e) {}
         }
       }
@@ -306,7 +337,7 @@ function useStoreProvider() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {}
     if (!SYNC_ENABLED || !hydratedRef.current) return;
     if (applyingRemoteRef.current) { applyingRemoteRef.current = false; return; }
-    const rev = Date.now();
+    const rev = Math.max(Date.now(), lastServerRev.current + 1);
     try { localStorage.setItem(REV_KEY, String(rev)); } catch (e) {}
     pendingRef.current = { data, rev };
     setSyncStatus('saving');

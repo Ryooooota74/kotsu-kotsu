@@ -219,6 +219,83 @@ function Sheet({ open, onClose, children, maxWidth = 480 }) {
   );
 }
 
+// ── crash screen ──────────────────────────────────────────────
+// A throw anywhere in the tree used to blank the page, stranding the user with
+// their data in localStorage and no way to get it out. This reads localStorage
+// directly, so it still works when the store itself is what broke.
+function CrashScreen({ error }) {
+  const [saved, setSaved] = React.useState(false);
+  const raw = (() => { try { return localStorage.getItem('taskmgr_v4'); } catch (e) { return null; } })();
+
+  const save = () => {
+    try {
+      const blob = new Blob([raw || '{}'], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kotsu-kotsu-rescue.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setSaved(true);
+    } catch (e) {}
+  };
+
+  const btn = {
+    fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, padding: '10px 16px',
+    borderRadius: 8, cursor: 'pointer', border: '1px solid var(--border2)',
+    background: 'var(--bg)', color: 'var(--text)',
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'var(--bg)', color: 'var(--text)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      fontFamily: "'Hanken Grotesk', system-ui, -apple-system, sans-serif",
+    }}>
+      <div style={{ maxWidth: 460, width: '100%' }}>
+        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: -0.3, marginBottom: 8 }}>
+          Something went wrong
+        </div>
+        <div style={{ fontSize: 13.5, color: 'var(--text2)', lineHeight: 1.55, marginBottom: 18 }}>
+          Your tasks are still saved on this device — nothing has been deleted. Save a copy
+          before reloading, just in case.
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+          <button type="button" onClick={save} style={{ ...btn, borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+            {saved ? 'Saved ✓' : 'Save my data'}
+          </button>
+          <button type="button" onClick={() => location.reload()} style={btn}>Reload</button>
+          <button type="button" style={btn}
+            onClick={() => {
+              // view state (which page, which groups are collapsed) is a common cause;
+              // clearing it never touches the tasks themselves
+              try { localStorage.removeItem('taskmgr_page'); localStorage.removeItem('taskmgr_collapsed'); } catch (e) {}
+              location.reload();
+            }}>Reset the view</button>
+        </div>
+
+        <details style={{ fontSize: 12, color: 'var(--muted)' }}>
+          <summary style={{ cursor: 'pointer' }}>Error details</summary>
+          <pre style={{
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: 8,
+            fontSize: 11.5, lineHeight: 1.5, color: 'var(--text2)',
+          }}>{String((error && (error.stack || error.message)) || error)}</pre>
+        </details>
+      </div>
+    </div>
+  );
+}
+
+class AppErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('[crash]', error, info && info.componentStack); }
+  render() {
+    return this.state.error ? <CrashScreen error={this.state.error} /> : this.props.children;
+  }
+}
+
 // ── backup / restore ──────────────────────────────────────────
 // Sync is last-write-wins across devices, so a bad merge can wipe real work. This
 // gives a plain JSON file you can keep, and a way to put it back.
@@ -286,5 +363,5 @@ function useBackup(toast) {
 }
 
 Object.assign(window, {
-  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet, useBackup,
+  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet, useBackup, AppErrorBoundary, CrashScreen,
 });
