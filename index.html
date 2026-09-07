@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1788664475';</script>
+<script>window.__BUILD='1788741426';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -483,10 +483,14 @@ function normalise(d) {
   }
   return d;
 }
+let LOADED_FROM_DISK = false;
 function load() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return normalise(JSON.parse(raw));
+    if (raw) {
+      LOADED_FROM_DISK = true;
+      return normalise(JSON.parse(raw));
+    }
   } catch (e) {}
   const s = seed();
   try {
@@ -517,6 +521,8 @@ function useStoreProvider() {
   const retryDelay = React.useRef(0);
   const pullingRef = React.useRef(false);
   const lastPullAt = React.useRef(0);
+  const pullRetryTimer = React.useRef(null);
+  const pullRetryDelay = React.useRef(0);
   const flush = React.useCallback(async () => {
     clearTimeout(retryTimer.current);
     const p = pendingRef.current;
@@ -574,6 +580,9 @@ function useStoreProvider() {
         }
       }
       setSyncStatus(pendingRef.current ? 'saving' : 'synced');
+      hydratedRef.current = true;
+      pullRetryDelay.current = 0;
+      clearTimeout(pullRetryTimer.current);
       if (pendingRef.current) flush();
       return {
         ok: true,
@@ -582,13 +591,17 @@ function useStoreProvider() {
     } catch (e) {
       console.warn('[sync] pull failed', e && e.message);
       setSyncStatus('error');
+      if (LOADED_FROM_DISK) hydratedRef.current = true;else {
+        pullRetryDelay.current = Math.min(pullRetryDelay.current ? pullRetryDelay.current * 2 : 3000, 60000);
+        clearTimeout(pullRetryTimer.current);
+        pullRetryTimer.current = setTimeout(() => pull(), pullRetryDelay.current);
+      }
       return {
         ok: false,
         changed: false
       };
     } finally {
       pullingRef.current = false;
-      hydratedRef.current = true;
     }
   }, [flush]);
   React.useEffect(() => {

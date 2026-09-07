@@ -155,10 +155,14 @@ function normalise(d) {
   return d;
 }
 
+// True when this device had real saved data to start from. When it's false we're
+// holding demo seed data, which must never be pushed over the cloud (see below).
+let LOADED_FROM_DISK = false;
+
 function load() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return normalise(JSON.parse(raw));
+    if (raw) { LOADED_FROM_DISK = true; return normalise(JSON.parse(raw)); }
   } catch (e) {}
   const s = seed();
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
@@ -194,6 +198,8 @@ function useStoreProvider() {
   const retryDelay = React.useRef(0);
   const pullingRef = React.useRef(false);
   const lastPullAt = React.useRef(0);
+  const pullRetryTimer = React.useRef(null);
+  const pullRetryDelay = React.useRef(0);
 
   // send whatever is queued; on failure keep it queued and retry with backoff, so a
   // change made while offline still reaches the cloud instead of being dropped
@@ -244,15 +250,26 @@ function useStoreProvider() {
         }
       }
       setSyncStatus(pendingRef.current ? 'saving' : 'synced');
+      hydratedRef.current = true;
+      pullRetryDelay.current = 0;
+      clearTimeout(pullRetryTimer.current);
       if (pendingRef.current) flush();
       return { ok: true, changed };
     } catch (e) {
       console.warn('[sync] pull failed', e && e.message);
       setSyncStatus('error');
+      // A device holding only demo seed data must not start pushing just because
+      // the first pull failed — that would overwrite real cloud data with the
+      // seed. Stay gated and keep trying to read the cloud instead.
+      if (LOADED_FROM_DISK) hydratedRef.current = true;
+      else {
+        pullRetryDelay.current = Math.min(pullRetryDelay.current ? pullRetryDelay.current * 2 : 3000, 60000);
+        clearTimeout(pullRetryTimer.current);
+        pullRetryTimer.current = setTimeout(() => pull(), pullRetryDelay.current);
+      }
       return { ok: false, changed: false };
     } finally {
       pullingRef.current = false;
-      hydratedRef.current = true;
     }
   }, [flush]);
 
