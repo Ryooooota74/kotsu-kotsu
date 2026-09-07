@@ -15,7 +15,7 @@ echo "→ checking sw.js parses"
 node --check "$ROOT/sw.js"
 
 node -e '
-  const files = ["bundle", "sw"];
+  const files = ["bundle", "sw", "suggest"];
   let pass = 0, fail = 0;
   const t = {
     ok(cond, msg) { cond ? (pass++, console.log("  ✓ " + msg))

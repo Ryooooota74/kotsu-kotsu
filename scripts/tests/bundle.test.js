@@ -22,6 +22,7 @@ module.exports = async function run(t) {
   t.ok(html.includes('LOADED_FROM_DISK'), 'seeded devices are gated from pushing');
   t.ok(html.includes('Save backup') && html.includes('Restore backup'), 'backup menu is wired');
   t.ok(html.includes('getDerivedStateFromError'), 'has a crash boundary');
+  t.ok(html.includes('Often added') && html.includes('suggestTasks'), 'quick-add suggestions are wired');
 
   const sync = /window\.KOTSU_SYNC = \{[\s\S]*?\}/.exec(html)[0];
   t.ok(/url:\s*"https:\/\//.test(sync), 'sync URL is filled in');

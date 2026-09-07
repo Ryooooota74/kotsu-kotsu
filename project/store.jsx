@@ -169,6 +169,88 @@ function load() {
   return s;
 }
 
+// ── suggestions ───────────────────────────────────────────────
+// Tasks like "Laundry" get retyped week after week. These read the day history
+// to find the ones that recur, work out roughly how often, and surface the ones
+// that are due again. Pure functions of the stored data — no extra state to sync.
+
+function daysApart(aKey, bKey) {
+  return Math.round((parseKey(bKey) - parseKey(aKey)) / 86400000);
+}
+
+function medianOf(nums) {
+  if (!nums.length) return 0;
+  const s = [...nums].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+}
+
+function taskHistory(data) {
+  const days = data.days || {};
+  const keys = Object.keys(days).sort();          // oldest first, so the newest spelling wins
+  const byTitle = new Map();
+  keys.forEach(k => {
+    (days[k] || []).forEach(t => {
+      // tasks that arrive as part of a group are already covered by "Apply a group"
+      if (t.fromGroupId) return;
+      const title = (t.title || '').trim();
+      if (!title) return;
+      const id = title.toLowerCase();
+      let h = byTitle.get(id);
+      if (!h) { h = { id, title, dates: [], cats: {}, boxes: {}, subs: null }; byTitle.set(id, h); }
+      if (h.dates[h.dates.length - 1] !== k) h.dates.push(k);   // once per day
+      h.title = title;
+      if (t.category) h.cats[t.category] = (h.cats[t.category] || 0) + 1;
+      const b = t.totalBoxes || 1;
+      h.boxes[b] = (h.boxes[b] || 0) + 1;
+      if ((t.subtasks || []).length) h.subs = t.subtasks.map(x => ({ title: x.title, totalBoxes: x.totalBoxes || 1 }));
+    });
+  });
+  return byTitle;
+}
+
+function commonest(counts, fallback) {
+  let best = fallback, n = -1;
+  Object.keys(counts).forEach(k => { if (counts[k] > n) { n = counts[k]; best = k; } });
+  return best;
+}
+
+// Ranked quick-add candidates for `dkey`: due-again ones first, then the ones
+// added most often. Titles already on that day are skipped.
+function suggestTasks(data, dkey, limit) {
+  const onDay = new Set(((data.days || {})[dkey] || []).map(t => (t.title || '').trim().toLowerCase()));
+  const out = [];
+  taskHistory(data).forEach(h => {
+    if (h.dates.length < 2) return;               // a one-off isn't a habit yet
+    if (onDay.has(h.id)) return;
+    const gaps = [];
+    for (let i = 1; i < h.dates.length; i++) gaps.push(daysApart(h.dates[i - 1], h.dates[i]));
+    const cadence = medianOf(gaps);
+    const since = daysApart(h.dates[h.dates.length - 1], dkey);
+    if (since <= 0) return;                       // added on this day already, or later
+    // Something last done a season ago is an abandoned habit, not a due task —
+    // without this, anything ever added on two consecutive days would have a
+    // one-day cadence and sit at the top of the list forever.
+    if (since > 90) return;
+    const ratio = cadence > 0 ? since / cadence : 0;
+    out.push({
+      id: h.id, title: h.title, count: h.dates.length, cadence, since, ratio,
+      due: cadence > 0 && ratio >= 0.8,
+      category: commonest(h.cats, null),
+      totalBoxes: Number(commonest(h.boxes, 1)) || 1,
+      subtasks: h.subs || [],
+    });
+  });
+  out.sort((a, b) => {
+    if (a.due !== b.due) return a.due ? -1 : 1;   // due again first
+    // strongest habit first; ratio only breaks ties, capped so that a short
+    // cadence can't out-shout a well-established weekly task
+    if (a.due) return (b.count - a.count) || (Math.min(b.ratio, 3) - Math.min(a.ratio, 3));
+    return b.count - a.count || a.title.localeCompare(b.title);
+  });
+  return out.slice(0, limit || 8);
+}
+
 const StoreContext = React.createContext(null);
 
 // ── cloud sync (Supabase) ─────────────────────────────────────
@@ -559,4 +641,5 @@ Object.assign(window, {
   StoreContext, useStoreProvider, dateKey, parseKey, addDays, isSameDay,
   WD_SHORT, MON_SHORT, MON_LONG, makeTask, uid, dueInfo,
   categoryUsage, getCat, defaultCategoryId, fmtTime, fmtRange,
+  suggestTasks, taskHistory, medianOf, daysApart,
 });

@@ -5,6 +5,16 @@ function FieldLabel({ children }) {
   return <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>{children}</div>;
 }
 
+function cadenceLabel(days) {
+  if (!days || days < 1) return 'now and then';
+  if (days === 1) return 'daily';
+  if (days === 7) return 'weekly';
+  if (days === 14) return 'fortnightly';
+  if (days >= 28 && days <= 31) return 'monthly';
+  if (days % 7 === 0) return 'every ' + (days / 7) + ' wks';
+  return 'every ' + days + 'd';
+}
+
 function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
   const { data, actions } = React.useContext(StoreContext);
   const cats = data.categories || [];
@@ -37,6 +47,18 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
       setTitle(''); setCat(defaultCat || defaultCategoryId(data)); setBoxes(1); setSubs([]); setUsedTodo(null);
     }
   }, [open, editId, defaultCat]);
+
+  // quick-add candidates learned from the day history (see suggestTasks)
+  const suggestions = React.useMemo(
+    () => (editing ? [] : suggestTasks(data, dkey, 8)),
+    [data.days, dkey, editing]);
+
+  const fillFromSuggestion = (sg) => {
+    setTitle(sg.title); setUsedTodo(null);
+    if (sg.category) setCat(sg.category);
+    setBoxes(sg.totalBoxes || 1);
+    setSubs((sg.subtasks || []).map(x => ({ id: uid(), title: x.title, totalBoxes: x.totalBoxes || 1 })));
+  };
 
   const fillFromTodo = (td) => {
     setTitle(td.title); setUsedTodo(td.id);
@@ -98,6 +120,35 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
       </div>
 
       <div style={{ overflow: 'auto', padding: '0 18px 4px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* learned from what gets added again and again */}
+        {!editing && suggestions.length > 0 && (
+          <div>
+            <FieldLabel>Often added</FieldLabel>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -2px' }}>
+              {suggestions.map(sg => {
+                const color = sg.category ? getCat(data, sg.category).color : null;
+                return (
+                  <button type="button" key={sg.id} onClick={() => fillFromSuggestion(sg)}
+                    style={{
+                      flexShrink: 0, textAlign: 'left', cursor: 'pointer', borderRadius: 10,
+                      border: '1px solid ' + (sg.due ? 'var(--accent)' : 'var(--border)'),
+                      background: sg.due ? 'var(--accent-soft)' : 'var(--bg)',
+                      padding: '9px 12px', minWidth: 120, maxWidth: 190,
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      {color && <span style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />}
+                      <span style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sg.title}</span>
+                    </div>
+                    <div style={{ fontSize: 11, marginTop: 2, color: sg.due ? 'var(--accent)' : 'var(--text2)' }}>
+                      {sg.due ? 'Due again' : sg.count + '\u00d7 \u00b7 ' + cadenceLabel(sg.cadence)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* from to-do (dividers are separators, not to-dos) */}
         {!editing && (data.todos || []).filter(p => p.type !== 'divider').length > 0 && (
           <div>
