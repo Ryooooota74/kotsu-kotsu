@@ -24,6 +24,16 @@ module.exports = async function run(t) {
   t.ok(html.includes('getDerivedStateFromError'), 'has a crash boundary');
   t.ok(html.includes('Often added') && html.includes('suggestTasks'), 'quick-add suggestions are wired');
 
+  // every window-level drag must end on pointercancel, or the list keeps
+  // following the pointer after the OS takes the gesture away
+  const adds = (html.match(/addEventListener\('pointerup'/g) || []).length;
+  const cancels = (html.match(/addEventListener\('pointercancel'/g) || []).length;
+  t.eq(cancels, adds, 'every pointerup drag also listens for pointercancel');
+  t.eq((html.match(/removeEventListener\('pointercancel'/g) || []).length, adds,
+       'every pointercancel listener is removed again');
+
+  t.ok(html.includes('knownToday'), 'the app watches for the date rolling over');
+
   const sync = /window\.KOTSU_SYNC = \{[\s\S]*?\}/.exec(html)[0];
   t.ok(/url:\s*"https:\/\//.test(sync), 'sync URL is filled in');
   t.ok(!/anonKey:\s*""/.test(sync), 'sync key is filled in');

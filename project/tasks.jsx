@@ -103,10 +103,10 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
       {/* expanded */}
       {task.isExpanded && (
         <div style={{ marginTop: 8, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
-          {task.subtasks.map(s => (
+          {(task.subtasks || []).map(s => (
             <SubtaskRow key={s.id} sub={s}
               onChange={(ns) => upd(t => { const i = t.subtasks.findIndex(x => x.id === s.id); if (i >= 0) t.subtasks[i] = ns; })}
-              onDelete={() => upd(t => { t.subtasks = t.subtasks.filter(x => x.id !== s.id); })} />
+              onDelete={() => upd(t => { t.subtasks = (t.subtasks || []).filter(x => x.id !== s.id); })} />
           ))}
           {addingSub ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0 4px 6px' }}>
@@ -411,12 +411,17 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       document.body.style.userSelect = '';
       setDragId(null);
       actions.reorderTasks(dkey, orderRef.current.map(t => t.id));
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    // the OS can take the gesture away mid-drag (scroll takeover, a call, an edge
+    // swipe). Without this the drag never ends: the listeners stay attached and the
+    // list keeps following the pointer with nothing held down.
+    window.addEventListener('pointercancel', up);
   };
 
   // drag a whole group block (all its tasks move together)
@@ -450,12 +455,17 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       document.body.style.userSelect = '';
       setDragBlockId(null);
       actions.reorderTasks(dkey, orderRef.current.map(t => t.id));
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    // the OS can take the gesture away mid-drag (scroll takeover, a call, an edge
+    // swipe). Without this the drag never ends: the listeners stay attached and the
+    // list keeps following the pointer with nothing held down.
+    window.addEventListener('pointercancel', up);
   };
 
   // one draggable task row (ref tracked for pointer hit-testing)

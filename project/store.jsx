@@ -468,7 +468,7 @@ function useStoreProvider() {
           t.todoSnapshot = d.todos[idx];
           d.todos.splice(idx, 1);
         } else if (!done && idx < 0 && t.todoSnapshot) {
-          // un-checked again — restore the To-do where it was removed from
+          // un-checked again — put the To-do back at the top of the backlog
           d.todos.unshift(t.todoSnapshot);
           delete t.todoSnapshot;
         }
@@ -530,9 +530,17 @@ function useStoreProvider() {
 
     resetDay(key) {
       mutate(d => {
+        d.todos = d.todos || [];
         (d.days[key] || []).forEach(t => {
           t.completedCount = 0;
-          t.subtasks.forEach(s => { s.completedCount = 0; });
+          (t.subtasks || []).forEach(s => { s.completedCount = 0; });
+          // un-completing here has to put a To-do-sourced task back on the backlog,
+          // exactly as unticking its last box does — otherwise "Reset day" silently
+          // leaves the To-do off the list with the snapshot stranded on the task
+          if (t.todoSnapshot && !d.todos.some(td => td.id === t.fromTodoId)) {
+            d.todos.unshift(t.todoSnapshot);
+            delete t.todoSnapshot;
+          }
         });
       });
     },

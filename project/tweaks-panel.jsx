@@ -379,9 +379,14 @@ function TweakRadio({ label, value, options, onChange }) {
       setDragging(false);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    // the OS can take the gesture away mid-drag (scroll takeover, a call, an edge
+    // swipe). Without this the drag never ends: the listeners stay attached and the
+    // list keeps following the pointer with nothing held down.
+    window.addEventListener('pointercancel', up);
   };
 
   return (
@@ -444,9 +449,14 @@ function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) 
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    // the OS can take the gesture away mid-drag (scroll takeover, a call, an edge
+    // swipe). Without this the drag never ends: the listeners stay attached and the
+    // list keeps following the pointer with nothing held down.
+    window.addEventListener('pointercancel', up);
   };
   return (
     <div className="twk-num">

@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1788824795';</script>
+<script>window.__BUILD='1789002831';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -862,11 +862,16 @@ function useStoreProvider() {
     },
     resetDay(key) {
       mutate(d => {
+        d.todos = d.todos || [];
         (d.days[key] || []).forEach(t => {
           t.completedCount = 0;
-          t.subtasks.forEach(s => {
+          (t.subtasks || []).forEach(s => {
             s.completedCount = 0;
           });
+          if (t.todoSnapshot && !d.todos.some(td => td.id === t.fromTodoId)) {
+            d.todos.unshift(t.todoSnapshot);
+            delete t.todoSnapshot;
+          }
         });
       });
     },
@@ -2045,6 +2050,7 @@ function useLongPress(onLongPress, onClick) {
       timer.current = null;
     }
   };
+  React.useEffect(() => clear, []);
   const onDown = e => {
     fired.current = false;
     const p = e.touches ? e.touches[0] : e;
@@ -2071,6 +2077,7 @@ function useLongPress(onLongPress, onClick) {
     onTouchStart: onDown,
     onTouchMove: onMove,
     onTouchEnd: onUp,
+    onTouchCancel: clear,
     onContextMenu: e => {
       e.preventDefault();
       onLongPress && onLongPress(e);
@@ -2935,7 +2942,7 @@ function TaskCard({
       paddingTop: 4,
       borderTop: '1px solid var(--border)'
     }
-  }, task.subtasks.map(s => React.createElement(SubtaskRow, {
+  }, (task.subtasks || []).map(s => React.createElement(SubtaskRow, {
     key: s.id,
     sub: s,
     onChange: ns => upd(t => {
@@ -2943,7 +2950,7 @@ function TaskCard({
       if (i >= 0) t.subtasks[i] = ns;
     }),
     onDelete: () => upd(t => {
-      t.subtasks = t.subtasks.filter(x => x.id !== s.id);
+      t.subtasks = (t.subtasks || []).filter(x => x.id !== s.id);
     })
   })), addingSub ? React.createElement("div", {
     style: {
@@ -3578,12 +3585,14 @@ function SortableTaskList({
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       document.body.style.userSelect = '';
       setDragId(null);
       actions.reorderTasks(dkey, orderRef.current.map(t => t.id));
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   const startBlockDrag = anchorId => e => {
     e.preventDefault();
@@ -3613,12 +3622,14 @@ function SortableTaskList({
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       document.body.style.userSelect = '';
       setDragBlockId(null);
       actions.reorderTasks(dkey, orderRef.current.map(t => t.id));
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   const taskRow = (t, plain) => React.createElement("div", {
     key: t.id,
@@ -6405,12 +6416,14 @@ function SortableTodoList({
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       document.body.style.userSelect = '';
       setDragId(null);
       actions.reorderTodos(orderRef.current.map(t => t.id));
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   const containerStyle = columns > 1 ? {
     display: 'grid',
@@ -8708,9 +8721,11 @@ function TweakRadio({
       setDragging(false);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   return React.createElement(TweakRow, {
     label: label
@@ -8803,9 +8818,11 @@ function TweakNumber({
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   return React.createElement("div", {
     className: "twk-num"
@@ -9168,6 +9185,29 @@ function App() {
     } catch (e) {}
   }, [page]);
   const [dkey, setDkey] = React.useState(() => dateKey(new Date()));
+  const dkeyRef = React.useRef(dkey);
+  dkeyRef.current = dkey;
+  React.useEffect(() => {
+    let knownToday = dateKey(new Date());
+    const check = () => {
+      const now = dateKey(new Date());
+      if (now === knownToday) return;
+      const wasOnToday = dkeyRef.current === knownToday;
+      knownToday = now;
+      if (wasOnToday) setDkey(now);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    const timer = setInterval(check, 30000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
   const [toastMsg, setToastMsg] = React.useState('');
   const toastTimer = React.useRef(null);
   const toast = React.useCallback(m => {

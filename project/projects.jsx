@@ -299,12 +299,17 @@ function SortableTodoList({ todos, actions, todayKey, addedSet, dkey, toast, mod
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       document.body.style.userSelect = '';
       setDragId(null);
       actions.reorderTodos(orderRef.current.map(t => t.id));
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    // the OS can take the gesture away mid-drag (scroll takeover, a call, an edge
+    // swipe). Without this the drag never ends: the listeners stay attached and the
+    // list keeps following the pointer with nothing held down.
+    window.addEventListener('pointercancel', up);
   };
 
   const containerStyle = columns > 1

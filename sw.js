@@ -3,7 +3,7 @@
    still lands immediately (and the in-page build-id updater keeps working);
    everything else is cache-first so icons, fonts and the CDN scripts survive
    being offline. Supabase is never cached — sync must always hit the network. */
-const CACHE = 'kotsu-1788824795';
+const CACHE = 'kotsu-1789002831';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
                './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 

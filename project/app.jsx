@@ -132,6 +132,32 @@ function App() {
   });
   React.useEffect(() => { try { localStorage.setItem('taskmgr_page', page); } catch (e) {} }, [page]);
   const [dkey, setDkey] = React.useState(() => dateKey(new Date()));
+
+  // This app lives on a home screen for days at a time, so it has to notice
+  // midnight itself. Without this, "Today" stays on the day the app was opened
+  // and anything added lands on the wrong date. Only follow the clock over when
+  // the user is sitting on today — never yank them off a day they navigated to.
+  const dkeyRef = React.useRef(dkey);
+  dkeyRef.current = dkey;
+  React.useEffect(() => {
+    let knownToday = dateKey(new Date());
+    const check = () => {
+      const now = dateKey(new Date());
+      if (now === knownToday) return;
+      const wasOnToday = dkeyRef.current === knownToday;
+      knownToday = now;
+      if (wasOnToday) setDkey(now);
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    const timer = setInterval(check, 30000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
   const [toastMsg, setToastMsg] = React.useState('');
   const toastTimer = React.useRef(null);
   const toast = React.useCallback((m) => {

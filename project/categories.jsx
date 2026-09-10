@@ -10,6 +10,9 @@ function useLongPress(onLongPress, onClick) {
   const fired = React.useRef(false);
   const start = React.useRef([0, 0]);
   const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+  // a pending timer must not outlive the component, or it fires onLongPress on
+  // something that is no longer on screen
+  React.useEffect(() => clear, []);
   const onDown = (e) => {
     fired.current = false;
     const p = e.touches ? e.touches[0] : e;
@@ -27,7 +30,8 @@ function useLongPress(onLongPress, onClick) {
   };
   return {
     onMouseDown: onDown, onMouseMove: onMove, onMouseUp: onUp, onMouseLeave: clear,
-    onTouchStart: onDown, onTouchMove: onMove, onTouchEnd: onUp,
+    // onTouchCancel: the system took the touch away, so the press never completed
+    onTouchStart: onDown, onTouchMove: onMove, onTouchEnd: onUp, onTouchCancel: clear,
     onContextMenu: (e) => { e.preventDefault(); onLongPress && onLongPress(e); },
   };
 }
