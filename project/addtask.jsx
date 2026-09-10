@@ -181,6 +181,8 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -2px' }}>
               {data.groups.filter(g => g.tasks.length > 0).map(g => {
                 const color = getCat(data, g.category || (g.tasks[0] && g.tasks[0].category)).color;
+                // applying twice silently doubles the block — say so rather than hide it
+                const already = (data.days[dkey] || []).some(t => t.fromGroupId === g.id);
                 return (
                   <button type="button" key={g.id} onClick={() => applyGroup(g)}
                     style={{
@@ -192,7 +194,9 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
                       <span style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />
                       <span style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{g.tasks.length} task{g.tasks.length !== 1 ? 's' : ''}</div>
+                    <div style={{ fontSize: 11, marginTop: 2, color: already ? 'var(--accent)' : 'var(--text2)' }}>
+                      {already ? 'Already on this day' : g.tasks.length + ' task' + (g.tasks.length !== 1 ? 's' : '')}
+                    </div>
                   </button>
                 );
               })}

@@ -223,8 +223,10 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
 
 // ── Divider row — a standalone separator you can drag anywhere ─
 function DividerRow({ divider, actions, dragHandle, dragging }) {
+  const labelField = useDraftField(divider.label || '',
+    (v) => actions.updateTodo(divider.id, { label: v }));
   // size the label to its text — CJK glyphs are about twice as wide as latin ones
-  const label = divider.label || '';
+  const label = labelField.value;
   const labelWidth = Math.min(240, Math.max(72,
     [...label].reduce((n, ch) => n + (/[　-鿿가-힯＀-￯]/.test(ch) ? 15 : 8), 0) + 26));
   return (
@@ -243,7 +245,7 @@ function DividerRow({ divider, actions, dragHandle, dragging }) {
         </span>
       )}
       <span style={{ flex: 1, height: 0, borderTop: `2px dashed ${dragging ? 'var(--accent)' : 'var(--border2)'}` }} />
-      <input value={label} onChange={e => actions.updateTodo(divider.id, { label: e.target.value })}
+      <input {...labelField}
         placeholder="Label…" title="Name this section"
         style={{
           flexShrink: 0, width: labelWidth,

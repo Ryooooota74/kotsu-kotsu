@@ -30,7 +30,7 @@ function AppHeader({ page, setPage, actions }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <img src="icon-192.png" alt="" width={24} height={24}
             style={{ borderRadius: 6, display: 'block', flexShrink: 0 }} />
-          <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>Kotsu-Kotsu</span>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>Kotsu-Kotsu</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions}</div>
       </div>

@@ -183,12 +183,80 @@ function ctrlBtn(boxSize) {
 }
 
 // ── Bottom sheet / modal shell ────────────────────────────────
+// Typing straight into the store deep-clones and re-serialises the whole document
+// on every keystroke, and re-arms the cloud push each time. Hold a local draft and
+// commit it once the field settles instead.
+function useDraftField(value, commit, delay = 400) {
+  const [draft, setDraft] = React.useState(value);
+  const editing = React.useRef(false);
+  const timer = React.useRef(null);
+  // follow changes from elsewhere (a pull, a restore) unless the user is mid-edit
+  React.useEffect(() => { if (!editing.current) setDraft(value); }, [value]);
+  React.useEffect(() => () => clearTimeout(timer.current), []);
+  const flush = (v) => {
+    clearTimeout(timer.current);
+    editing.current = false;
+    if (v !== value) commit(v);
+  };
+  return {
+    value: draft,
+    onChange: (e) => {
+      const v = e.target.value;
+      editing.current = true;
+      setDraft(v);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => flush(v), delay);
+    },
+    onBlur: () => flush(draft),
+    onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } },
+  };
+}
+
+// Overlays currently on screen, innermost last. The back button and Escape must
+// only ever dismiss the top one, not every sheet at once.
+const openOverlays = [];
+
+function useDismissable(open, onClose) {
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const token = {};
+    openOverlays.push(token);
+    const isTop = () => openOverlays[openOverlays.length - 1] === token;
+    const drop = () => { const i = openOverlays.indexOf(token); if (i >= 0) openOverlays.splice(i, 1); };
+
+    const onKey = (e) => { if (e.key === 'Escape' && isTop()) { e.stopPropagation(); onClose && onClose(); } };
+    window.addEventListener('keydown', onKey);
+
+    // Give the sheet a history entry so the Android back button closes it instead
+    // of leaving the app. Harmless where there is no back button (iOS home-screen).
+    let dismissedByBack = false;
+    let pushed = false;
+    try { history.pushState({ kotsuOverlay: true }, ''); pushed = true; } catch (e) {}
+    const onPop = () => {
+      if (!isTop()) return;
+      dismissedByBack = true;
+      drop();
+      onClose && onClose();
+    };
+    window.addEventListener('popstate', onPop);
+
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('popstate', onPop);
+      drop();
+      // closed from the UI rather than by back — take our entry back off the stack
+      if (pushed && !dismissedByBack) { try { history.back(); } catch (e) {} }
+    };
+  }, [open, onClose]);
+}
+
 function Sheet({ open, onClose, children, maxWidth = 480 }) {
   const [show, setShow] = React.useState(false);
   React.useEffect(() => {
     if (open) { const t = setTimeout(() => setShow(true), 10); return () => clearTimeout(t); }
     setShow(false);
   }, [open]);
+  useDismissable(open, onClose);
   if (!open) return null;
   return (
     <div onClick={onClose}
@@ -363,5 +431,5 @@ function useBackup(toast) {
 }
 
 Object.assign(window, {
-  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet, useBackup, AppErrorBoundary, CrashScreen,
+  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet, useBackup, AppErrorBoundary, CrashScreen, useDismissable, useDraftField,
 });

@@ -32,7 +32,7 @@ function makeTask({ title, category = 'work', totalBoxes = 1, subtasks = [], fro
     subtasks: subtasks.map(s => ({
       id: uid(), title: s.title, completedCount: 0, totalBoxes: s.totalBoxes || 1,
     })),
-    isExpanded: false, fromTodoId, fromGroupId, fromGroupName,
+    fromTodoId, fromGroupId, fromGroupName,
     start, duration, // start = minutes from midnight (null = unscheduled); duration in minutes
   };
 }
@@ -152,7 +152,25 @@ function normalise(d) {
   if (d && Array.isArray(d.todos)) {
     d.todos.forEach(t => { delete t.dividerBelow; delete t.dividerLabel; });
   }
+  // isExpanded is per-device view state now (see EXPANDED_KEY) — it used to live in
+  // the document, so merely opening a card re-uploaded the whole thing
+  if (d && d.days) Object.values(d.days).forEach(arr => {
+    if (Array.isArray(arr)) arr.forEach(t => { delete t.isExpanded; });
+  });
   return d;
+}
+
+// Which cards are expanded, kept on the device like the collapsed-group ids.
+const EXPANDED_KEY = 'taskmgr_expanded';
+function readExpanded() {
+  try { return JSON.parse(localStorage.getItem(EXPANDED_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+function setExpandedId(id, on) {
+  try {
+    const m = readExpanded();
+    if (on) m[id] = true; else delete m[id];
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify(m));
+  } catch (e) {}
 }
 
 // True when this device had real saved data to start from. When it's false we're
@@ -292,6 +310,9 @@ function useStoreProvider() {
   // clock automatically if the trigger isn't installed.
   const serverStamps = React.useRef(true);
   const lastServerRev = React.useRef(readRev());
+  // what the cloud already holds, so a mutation that changes nothing meaningful
+  // doesn't re-upload the whole document
+  const lastPushedJson = React.useRef(null);
 
   // send whatever is queued; on failure keep it queued and retry with backoff, so a
   // change made while offline still reaches the cloud instead of being dropped
@@ -324,6 +345,7 @@ function useStoreProvider() {
         return flush();
       }
 
+      lastPushedJson.current = p.json;
       // a newer edit may have queued while we were in flight — keep that one
       if (pendingRef.current === p) { pendingRef.current = null; setSyncStatus('synced'); }
     } catch (e) {
@@ -356,7 +378,9 @@ function useStoreProvider() {
           clearTimeout(retryTimer.current);
           pendingRef.current = null;
           applyingRemoteRef.current = true;
-          setData(normalise(row.data));
+          const fresh = normalise(row.data);
+          lastPushedJson.current = JSON.stringify(fresh);
+          setData(fresh);
           changed = true;
           lastServerRev.current = remoteRev;
           try { localStorage.setItem(REV_KEY, String(remoteRev)); } catch (e) {}
@@ -416,12 +440,14 @@ function useStoreProvider() {
 
   // persist to localStorage always; debounce-push to the cloud once hydrated
   React.useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {}
+    const json = JSON.stringify(data);
+    try { localStorage.setItem(LS_KEY, json); } catch (e) {}
     if (!SYNC_ENABLED || !hydratedRef.current) return;
     if (applyingRemoteRef.current) { applyingRemoteRef.current = false; return; }
+    if (json === lastPushedJson.current) return;   // nothing the cloud doesn't have
     const rev = Math.max(Date.now(), lastServerRev.current + 1);
     try { localStorage.setItem(REV_KEY, String(rev)); } catch (e) {}
-    pendingRef.current = { data, rev };
+    pendingRef.current = { data, rev, json };
     setSyncStatus('saving');
     clearTimeout(pushTimer.current);
     clearTimeout(retryTimer.current);
@@ -649,5 +675,5 @@ Object.assign(window, {
   StoreContext, useStoreProvider, dateKey, parseKey, addDays, isSameDay,
   WD_SHORT, MON_SHORT, MON_LONG, makeTask, uid, dueInfo,
   categoryUsage, getCat, defaultCategoryId, fmtTime, fmtRange,
-  suggestTasks, taskHistory, medianOf, daysApart,
+  suggestTasks, taskHistory, medianOf, daysApart, readExpanded, setExpandedId,
 });

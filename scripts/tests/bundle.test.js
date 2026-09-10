@@ -34,6 +34,18 @@ module.exports = async function run(t) {
 
   t.ok(html.includes('knownToday'), 'the app watches for the date rolling over');
 
+  // a stray pixel must not be mistaken for a drag, or tap-to-edit is swallowed
+  t.ok(/newStart === d\.start \? d :/.test(html), 'timeline drags ignore sub-snap movement');
+  t.ok(html.includes('setNowTick'), 'the now-line ticks instead of freezing');
+  t.ok(html.includes('useDismissable'), 'overlays close on Escape and the back button');
+  t.ok(html.includes('useDraftField'), 'text fields hold a draft instead of writing per keystroke');
+  // the only surviving mention should be the migration that strips the old field
+  t.eq((html.match(/isExpanded/g) || []).length, 1,
+       'card expansion is device-local; isExpanded only remains as the strip-on-load');
+  t.ok(html.includes('Already on this day'), 'an already-applied group says so');
+  t.ok(html.includes('lastPushedJson'), 'unchanged payloads are not re-uploaded');
+  t.ok(/<h1|createElement\("h1"/.test(html), 'the page has real headings');
+
   const sync = /window\.KOTSU_SYNC = \{[\s\S]*?\}/.exec(html)[0];
   t.ok(/url:\s*"https:\/\//.test(sync), 'sync URL is filled in');
   t.ok(!/anonKey:\s*""/.test(sync), 'sync key is filled in');

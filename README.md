@@ -58,6 +58,19 @@ localStorage (`taskmgr_v4`) に常時保存しつつ、Supabase の `app_state` 
 ロジックは `suggestTasks()`（`project/store.jsx`）。純粋関数なので
 `scripts/tests/suggest.test.js` で単体テストしている。
 
+## 端末ローカルの表示状態
+
+同期する文書に入れず、その端末の localStorage に置いているもの:
+
+| キー | 中身 |
+|---|---|
+| `taskmgr_page` | 最後に開いていたページ |
+| `taskmgr_collapsed` | 折りたたみ中のグループ |
+| `taskmgr_expanded` | 展開中のタスクカード |
+
+カードを開くだけで全文書がクラウドに再アップロードされるのを防ぐため。
+古いデータに残る `isExpanded` は読み込み時に取り除かれる。
+
 ## テスト
 
 ```bash

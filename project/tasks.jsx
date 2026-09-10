@@ -25,6 +25,9 @@ function SubtaskRow({ sub, onChange, onDelete }) {
 function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit, onLongPress }) {
   const [addingSub, setAddingSub] = React.useState(false);
   const [subText, setSubText] = React.useState('');
+  // expansion is a per-device view preference, not document data
+  const [expanded, setExpanded] = React.useState(() => !!readExpanded()[task.id]);
+  const toggleExpanded = () => setExpanded(v => { setExpandedId(task.id, !v); return !v; });
   const done = task.totalBoxes > 0 && task.completedCount >= task.totalBoxes;
   // phone: long-press the title opens an action sheet (edit/delete) instead of inline buttons
   const lp = useLongPress(onLongPress ? () => onLongPress(task.id) : undefined);
@@ -58,12 +61,12 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
             <IconGrip size={16} />
           </span>
         )}
-        <button type="button" onClick={() => upd(t => { t.isExpanded = !t.isExpanded; })}
+        <button type="button" onClick={toggleExpanded}
           style={{
             border: 'none', background: 'transparent', cursor: 'pointer', padding: 2,
             color: 'var(--muted)', display: 'inline-flex', flexShrink: 0,
-          }} title={task.isExpanded ? 'Collapse' : 'Expand'}>
-          <IconChevron size={15} style={{ transform: task.isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
+          }} title={expanded ? 'Collapse' : 'Expand'}>
+          <IconChevron size={15} style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
         </button>
 
         <span {...(onLongPress ? lp : {})} title={onLongPress ? 'Hold for options' : undefined}
@@ -101,7 +104,7 @@ function TaskCard({ task, dkey, actions, catColor, dragHandle, dragging, onEdit,
       </div>
 
       {/* expanded */}
-      {task.isExpanded && (
+      {expanded && (
         <div style={{ marginTop: 8, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
           {(task.subtasks || []).map(s => (
             <SubtaskRow key={s.id} sub={s}

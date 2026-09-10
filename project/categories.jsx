@@ -178,6 +178,7 @@ function CategoryRow({ cat, index, total }) {
   const { data, actions } = React.useContext(StoreContext);
   const [showColors, setShowColors] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
+  const nameField = useDraftField(cat.name, (v) => actions.updateCategory(cat.id, { name: v }));
   const usage = categoryUsage(data, cat.id);
   const fallback = (data.categories.find(c => c.id !== cat.id) || {});
 
@@ -192,7 +193,7 @@ function CategoryRow({ cat, index, total }) {
           style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4, display: 'inline-flex', flexShrink: 0 }}>
           <CatDot color={cat.color} size={16} />
         </button>
-        <input value={cat.name} onChange={e => actions.updateCategory(cat.id, { name: e.target.value })}
+        <input {...nameField}
           placeholder="Category name" className="inp"
           style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, padding: '8px 10px' }} />
         <IconBtn size={28} danger onClick={() => setConfirming(true)} title="Delete"
@@ -232,6 +233,9 @@ function CategoryActionSheet({ open, catId, onClose, onManageAll }) {
   const cat = (data.categories || []).find(c => c.id === catId);
   const [confirming, setConfirming] = React.useState(false);
   React.useEffect(() => { if (open) setConfirming(false); }, [open, catId]);
+  // declared before the early return below — hooks must run on every render
+  const nameField = useDraftField((cat && cat.name) || '',
+    (v) => { if (cat) actions.updateCategory(cat.id, { name: v }); });
   if (!cat) return null;
 
   const usage = categoryUsage(data, cat.id);
@@ -251,7 +255,7 @@ function CategoryActionSheet({ open, catId, onClose, onManageAll }) {
         {/* rename */}
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>Name</div>
-          <input value={cat.name} onChange={e => actions.updateCategory(cat.id, { name: e.target.value })}
+          <input {...nameField}
             placeholder="Category name" className="inp"
             style={{ width: '100%', fontSize: 15, fontWeight: 600, padding: '10px 12px' }} />
         </div>

@@ -78,7 +78,7 @@ function DesktopSidebar({ device, page, setPage, cat, setCat, dkey, setDkey, cou
         <img src="icon-192.png" alt="" width={30} height={30}
           style={{ borderRadius: 8, display: 'block', flexShrink: 0 }} />
         <div style={{ lineHeight: 1.1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>Kotsu-Kotsu</div>
+          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, letterSpacing: -0.4, whiteSpace: 'nowrap' }}>Kotsu-Kotsu</h1>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>Daily planner</div>
         </div>
       </div>
@@ -163,7 +163,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <IconBtn size={36} onClick={() => setDkey(dateKey(addDays(d, -1)))} title="Previous day" style={{ border: '1px solid var(--border)' }}><IconArrowLeft size={17} /></IconBtn>
           <div style={{ lineHeight: 1.1 }}>
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.4 }}>{dateLabel}</div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: -0.4 }}>{dateLabel}</h2>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text2)' }}>{MON_LONG[d.getMonth()]} {d.getDate()}, {d.getFullYear()}</div>
           </div>
           <IconBtn size={36} onClick={() => setDkey(dateKey(addDays(d, 1)))} title="Next day" style={{ border: '1px solid var(--border)' }}><IconArrowRight size={17} /></IconBtn>
@@ -191,7 +191,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
         <div style={{ flex: '0 1 692px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '16px 26px 10px', flexShrink: 0 }}>
             {catObj && <span style={{ width: 10, height: 10, borderRadius: 999, background: catObj.color }} />}
-            <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{isAll ? 'All tasks' : catObj?.name}</span>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{isAll ? 'All tasks' : catObj?.name}</h3>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{shown.length}</span>
             {!isAll && <button type="button" onClick={() => setCat('all')} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--text2)', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Show all</button>}
           </div>
@@ -215,7 +215,7 @@ function DesktopTasks({ device, dkey, setDkey, cat, setCat, recordKeys, onAdd, o
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 16px 12px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <IconClock size={17} style={{ color: 'var(--text2)' }} />
-              <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>Schedule</span>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>Schedule</h3>
             </div>
             <Btn variant="outline" size="sm" onClick={onNewEvent}><IconPlus size={14} /> Event</Btn>
           </div>

@@ -90,14 +90,17 @@ function DayTimeline({ dkey, onEditEvent, onEditTask }) {
     if (!drag) return;
     const laneRect = laneRef.current.getBoundingClientRect();
     const y = e.clientY - laneRect.top + (scrollRef.current ? 0 : 0);
+    // `moved` must only flip once the block genuinely lands somewhere else. A
+    // finger never holds perfectly still, and marking any stray pixel as a drag
+    // swallowed the tap-to-edit gesture entirely.
     if (drag.kind === 'move') {
       let newStart = snap(((y - drag.grabOffset) / HOUR_PX) * 60);
       newStart = Math.max(0, Math.min(DAY_MIN - drag.duration, newStart));
-      setDrag(d => ({ ...d, start: newStart, moved: true }));
+      setDrag(d => (newStart === d.start ? d : { ...d, start: newStart, moved: true }));
     } else {
       let newDur = snap(((y) / HOUR_PX) * 60 - drag.start);
       newDur = Math.max(SNAP, Math.min(DAY_MIN - drag.start, newDur));
-      setDrag(d => ({ ...d, duration: newDur, moved: true }));
+      setDrag(d => (newDur === d.duration ? d : { ...d, duration: newDur, moved: true }));
     }
   };
 
@@ -115,12 +118,33 @@ function DayTimeline({ dkey, onEditEvent, onEditTask }) {
     else actions.scheduleTask(dkey, d.id, d.start, d.duration);
   };
 
-  // drop an unscheduled task: place at 9:00 or first open-ish hour
+  // drop an unscheduled task: 9:00, or the first free slot after it so a second
+  // task from the tray doesn't land straight on top of the first
   const scheduleFromTray = (taskId) => {
-    actions.scheduleTask(dkey, taskId, 9 * 60, 60);
+    const DUR = 60;
+    const taken = blocks.map(b => ({ start: b.start, end: b.end }));
+    const clashes = (s0) => taken.some(t => s0 < t.end && s0 + DUR > t.start);
+    let start = 9 * 60;
+    while (start + DUR <= DAY_MIN && clashes(start)) start += SNAP;
+    if (start + DUR > DAY_MIN) start = 9 * 60;   // day is full — fall back to 9:00
+    actions.scheduleTask(dkey, taskId, start, DUR);
   };
 
   const hours = Array.from({ length: 25 }, (_, i) => i);
+
+  // The now-line is derived from new Date() at render time, so without a tick it
+  // freezes at whenever the timeline last happened to re-render — hours out of
+  // date on a screen that is left open. Only runs while today is on screen.
+  const [, setNowTick] = React.useState(0);
+  React.useEffect(() => {
+    if (dkey !== dateKey(new Date())) return;
+    const bump = () => setNowTick(t => t + 1);
+    const id = setInterval(bump, 60000);
+    const onVisible = () => { if (document.visibilityState === 'visible') bump(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+  }, [dkey]);
+
   const nowMin = (() => {
     const n = new Date();
     return (dkey === dateKey(n)) ? n.getHours() * 60 + n.getMinutes() : null;

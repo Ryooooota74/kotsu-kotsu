@@ -148,11 +148,27 @@ function MonthGrid({ viewDate, dkey, onPick }) {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
 
+  // index the events once instead of rescanning them for all 42 cells
+  const eventsByDate = React.useMemo(() => {
+    const m = new Map();
+    (data.events || []).forEach(e => {
+      if (!m.has(e.date)) m.set(e.date, []);
+      m.get(e.date).push(e.color || '#e5484d');
+    });
+    return m;
+  }, [data.events]);
+
+  // A busy day used to fill all four dots with events and show nothing for the
+  // tasks — take from both so each is represented.
   const dotsFor = (k) => {
-    const cols = [];
-    (data.events || []).forEach(e => { if (e.date === k) cols.push(e.color || '#e5484d'); });
-    (data.days[k] || []).forEach(t => cols.push(getCat(data, t.category).color));
-    return cols.slice(0, 4);
+    const ev = eventsByDate.get(k) || [];
+    const tk = (data.days[k] || []).map(t => getCat(data, t.category).color);
+    const out = [];
+    for (let i = 0; out.length < 4 && (i < ev.length || i < tk.length); i++) {
+      if (i < ev.length && out.length < 4) out.push(ev[i]);
+      if (i < tk.length && out.length < 4) out.push(tk[i]);
+    }
+    return out;
   };
 
   return (
