@@ -183,14 +183,18 @@ function TaskActionSheet({ open, taskId, dkey, onClose, onEdit }) {
           <IconPencil size={17} /> Edit task
         </button>
 
-        <button type="button" onClick={() => { actions.moveTask(dkey, task.id, dateKey(addDays(parseKey(dkey), 1))); onClose(); }}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer',
-            padding: '13px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg)',
-            color: 'var(--text)', fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
-          }}>
-          <IconArrowRight size={17} /> Move to next day
-        </button>
+        {[{ n: -1, label: 'Move to previous day', icon: <IconArrowLeft size={17} /> },
+          { n: 1, label: 'Move to next day', icon: <IconArrowRight size={17} /> }].map(m => (
+          <button type="button" key={m.n}
+            onClick={() => { actions.moveTask(dkey, task.id, dateKey(addDays(parseKey(dkey), m.n))); onClose(); }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer',
+              padding: '13px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg)',
+              color: 'var(--text)', fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
+            }}>
+            {m.icon} {m.label}
+          </button>
+        ))}
 
         {confirming ? (
           <div style={{ padding: '12px 13px', background: 'var(--bg2)', borderRadius: 10 }}>
@@ -525,6 +529,10 @@ function SortableTaskList({ tasks, dkey, actions, isAll, data, onEditTask, onLon
                 <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: -0.2, color: 'var(--text)', flex: 1, textAlign: 'left', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
               </div>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{doneCount}/{b.tasks.length}</span>
+              <IconBtn size={26} title="Move group to previous day"
+                onClick={() => actions.moveTasks(dkey, b.tasks.map(t => t.id), dateKey(addDays(parseKey(dkey), -1)))}>
+                <IconArrowLeft size={15} />
+              </IconBtn>
               <IconBtn size={26} title="Move group to next day"
                 onClick={() => actions.moveTasks(dkey, b.tasks.map(t => t.id), dateKey(addDays(parseKey(dkey), 1)))}>
                 <IconArrowRight size={15} />

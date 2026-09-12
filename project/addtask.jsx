@@ -101,11 +101,11 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
     onClose();
   };
 
-  // move the (edited) task to the next day, keeping all its progress
-  const moveToNextDay = () => {
+  // move the (edited) task to an adjacent day, keeping all its progress
+  const moveByDays = (n) => {
     if (!title.trim()) return;
     applyEdits();
-    actions.moveTask(dkey, editId, dateKey(addDays(parseKey(dkey), 1)));
+    actions.moveTask(dkey, editId, dateKey(addDays(parseKey(dkey), n)));
     onClose();
   };
 
@@ -243,17 +243,23 @@ function AddTaskModal({ open, onClose, dkey, defaultCat, editId, toast }) {
           </div>
         </div>
 
-        {/* move to next day (edit only) */}
+        {/* move to an adjacent day (edit only) — either direction, since putting a
+            task on the wrong day is just as easy in both */}
         {editing && (
-          <button type="button" onClick={moveToNextDay}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              padding: '12px', borderRadius: 10, cursor: 'pointer',
-              border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)',
-              fontFamily: 'inherit', fontWeight: 600, fontSize: 13.5,
-            }}>
-            <IconArrowRight size={16} /> Move to next day
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ n: -1, label: 'Previous day', icon: <IconArrowLeft size={16} /> },
+              { n: 1, label: 'Next day', icon: <IconArrowRight size={16} /> }].map(m => (
+              <button type="button" key={m.n} onClick={() => moveByDays(m.n)}
+                style={{
+                  flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  padding: '12px', borderRadius: 10, cursor: 'pointer',
+                  border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)',
+                  fontFamily: 'inherit', fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap',
+                }}>
+                {m.icon} {m.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

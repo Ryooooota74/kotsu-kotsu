@@ -38,6 +38,16 @@ module.exports = async function run(t) {
   t.ok(/newStart === d\.start \? d :/.test(html), 'timeline drags ignore sub-snap movement');
   t.ok(html.includes('setNowTick'), 'the now-line ticks instead of freezing');
   t.ok(html.includes('useDismissable'), 'overlays close on Escape and the back button');
+  // one shared history entry for the whole stack: per-sheet entries broke the
+  // action-sheet -> edit-sheet hand-off (the closing sheet popped the new one)
+  t.ok(html.includes('armOverlayHistory') && html.includes('historyArmed'),
+       'overlays share a single history entry');
+  t.eq((html.match(/pushState/g) || []).length, 1, 'only one place pushes a history entry');
+
+  t.ok(html.includes('Move to previous day') && html.includes('Move to next day'),
+       'tasks can move either way between days');
+  t.ok(html.includes('Move group to previous day') && html.includes('Move group to next day'),
+       'group blocks can move either way between days');
   t.ok(html.includes('useDraftField'), 'text fields hold a draft instead of writing per keystroke');
   // the only surviving mention should be the migration that strips the old field
   t.eq((html.match(/isExpanded/g) || []).length, 1,

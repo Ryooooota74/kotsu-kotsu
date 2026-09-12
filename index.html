@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1789037403';</script>
+<script>window.__BUILD='1789228378';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1695,49 +1695,59 @@ function useDraftField(value, commit, delay = 400) {
   };
 }
 const openOverlays = [];
+let historyArmed = false;
+let overlayListening = false;
+function armOverlayHistory() {
+  if (historyArmed || typeof history === 'undefined') return;
+  try {
+    history.pushState({
+      kotsuOverlay: true
+    }, '');
+    historyArmed = true;
+  } catch (e) {}
+}
+function onOverlayPopState() {
+  historyArmed = false;
+  const top = openOverlays[openOverlays.length - 1];
+  if (!top) return;
+  top.close();
+  setTimeout(() => {
+    if (openOverlays.length) armOverlayHistory();
+  }, 0);
+}
+function onOverlayKeyDown(e) {
+  if (e.key !== 'Escape') return;
+  const top = openOverlays[openOverlays.length - 1];
+  if (top) top.close();
+}
 function useDismissable(open, onClose) {
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
   React.useEffect(() => {
     if (!open) return undefined;
-    const token = {};
+    const token = {
+      close: () => closeRef.current && closeRef.current()
+    };
     openOverlays.push(token);
-    const isTop = () => openOverlays[openOverlays.length - 1] === token;
-    const drop = () => {
+    if (!overlayListening) {
+      overlayListening = true;
+      window.addEventListener('popstate', onOverlayPopState);
+      window.addEventListener('keydown', onOverlayKeyDown);
+    }
+    armOverlayHistory();
+    return () => {
       const i = openOverlays.indexOf(token);
       if (i >= 0) openOverlays.splice(i, 1);
+      setTimeout(() => {
+        if (openOverlays.length === 0 && historyArmed) {
+          historyArmed = false;
+          try {
+            history.back();
+          } catch (e) {}
+        }
+      }, 0);
     };
-    const onKey = e => {
-      if (e.key === 'Escape' && isTop()) {
-        e.stopPropagation();
-        onClose && onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    let dismissedByBack = false;
-    let pushed = false;
-    try {
-      history.pushState({
-        kotsuOverlay: true
-      }, '');
-      pushed = true;
-    } catch (e) {}
-    const onPop = () => {
-      if (!isTop()) return;
-      dismissedByBack = true;
-      drop();
-      onClose && onClose();
-    };
-    window.addEventListener('popstate', onPop);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('popstate', onPop);
-      drop();
-      if (pushed && !dismissedByBack) {
-        try {
-          history.back();
-        } catch (e) {}
-      }
-    };
-  }, [open, onClose]);
+  }, [open]);
 }
 function Sheet({
   open,
@@ -3255,10 +3265,23 @@ function TaskActionSheet({
     }
   }, React.createElement(IconPencil, {
     size: 17
-  }), " Edit task"), React.createElement("button", {
+  }), " Edit task"), [{
+    n: -1,
+    label: 'Move to previous day',
+    icon: React.createElement(IconArrowLeft, {
+      size: 17
+    })
+  }, {
+    n: 1,
+    label: 'Move to next day',
+    icon: React.createElement(IconArrowRight, {
+      size: 17
+    })
+  }].map(m => React.createElement("button", {
     type: "button",
+    key: m.n,
     onClick: () => {
-      actions.moveTask(dkey, task.id, dateKey(addDays(parseKey(dkey), 1)));
+      actions.moveTask(dkey, task.id, dateKey(addDays(parseKey(dkey), m.n)));
       onClose();
     },
     style: {
@@ -3276,9 +3299,7 @@ function TaskActionSheet({
       fontWeight: 600,
       fontSize: 14
     }
-  }, React.createElement(IconArrowRight, {
-    size: 17
-  }), " Move to next day"), confirming ? React.createElement("div", {
+  }, m.icon, " ", m.label)), confirming ? React.createElement("div", {
     style: {
       padding: '12px 13px',
       background: 'var(--bg2)',
@@ -3869,6 +3890,12 @@ function SortableTaskList({
         fontVariantNumeric: 'tabular-nums'
       }
     }, doneCount, "/", b.tasks.length), React.createElement(IconBtn, {
+      size: 26,
+      title: "Move group to previous day",
+      onClick: () => actions.moveTasks(dkey, b.tasks.map(t => t.id), dateKey(addDays(parseKey(dkey), -1)))
+    }, React.createElement(IconArrowLeft, {
+      size: 15
+    })), React.createElement(IconBtn, {
       size: 26,
       title: "Move group to next day",
       onClick: () => actions.moveTasks(dkey, b.tasks.map(t => t.id), dateKey(addDays(parseKey(dkey), 1)))
@@ -5568,10 +5595,10 @@ function AddTaskModal({
     }
     onClose();
   };
-  const moveToNextDay = () => {
+  const moveByDays = n => {
     if (!title.trim()) return;
     applyEdits();
-    actions.moveTask(dkey, editId, dateKey(addDays(parseKey(dkey), 1)));
+    actions.moveTask(dkey, editId, dateKey(addDays(parseKey(dkey), n)));
     onClose();
   };
   return React.createElement(Sheet, {
@@ -5817,11 +5844,30 @@ function AddTaskModal({
     className: "dashed-add"
   }, React.createElement(IconPlus, {
     size: 15
-  }), " Add subtask"))), editing && React.createElement("button", {
-    type: "button",
-    onClick: moveToNextDay,
+  }), " Add subtask"))), editing && React.createElement("div", {
     style: {
-      width: '100%',
+      display: 'flex',
+      gap: 8
+    }
+  }, [{
+    n: -1,
+    label: 'Previous day',
+    icon: React.createElement(IconArrowLeft, {
+      size: 16
+    })
+  }, {
+    n: 1,
+    label: 'Next day',
+    icon: React.createElement(IconArrowRight, {
+      size: 16
+    })
+  }].map(m => React.createElement("button", {
+    type: "button",
+    key: m.n,
+    onClick: () => moveByDays(m.n),
+    style: {
+      flex: 1,
+      minWidth: 0,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -5834,11 +5880,10 @@ function AddTaskModal({
       color: 'var(--text)',
       fontFamily: 'inherit',
       fontWeight: 600,
-      fontSize: 13.5
+      fontSize: 13.5,
+      whiteSpace: 'nowrap'
     }
-  }, React.createElement(IconArrowRight, {
-    size: 16
-  }), " Move to next day")), React.createElement("div", {
+  }, m.icon, " ", m.label)))), React.createElement("div", {
     style: {
       display: 'flex',
       gap: 10,

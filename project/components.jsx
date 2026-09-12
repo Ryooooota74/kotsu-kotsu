@@ -215,39 +215,59 @@ function useDraftField(value, commit, delay = 400) {
 // Overlays currently on screen, innermost last. The back button and Escape must
 // only ever dismiss the top one, not every sheet at once.
 const openOverlays = [];
+// One shared history entry backs the whole stack rather than one per sheet. Per-sheet
+// entries broke the hand-off case — an action sheet that opens the edit sheet unmounts
+// and mounts in the same commit, and history.back() is async, so the closing sheet's
+// back() landed on the entry the new sheet had just pushed and dismissed it instantly.
+let historyArmed = false;
+let overlayListening = false;
+
+function armOverlayHistory() {
+  if (historyArmed || typeof history === 'undefined') return;
+  try { history.pushState({ kotsuOverlay: true }, ''); historyArmed = true; } catch (e) {}
+}
+
+function onOverlayPopState() {
+  historyArmed = false;                       // the browser just consumed our entry
+  const top = openOverlays[openOverlays.length - 1];
+  if (!top) return;
+  top.close();
+  // something still underneath: keep an entry so the next back closes that one
+  setTimeout(() => { if (openOverlays.length) armOverlayHistory(); }, 0);
+}
+
+function onOverlayKeyDown(e) {
+  if (e.key !== 'Escape') return;
+  const top = openOverlays[openOverlays.length - 1];
+  if (top) top.close();
+}
 
 function useDismissable(open, onClose) {
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
   React.useEffect(() => {
     if (!open) return undefined;
-    const token = {};
+    const token = { close: () => closeRef.current && closeRef.current() };
     openOverlays.push(token);
-    const isTop = () => openOverlays[openOverlays.length - 1] === token;
-    const drop = () => { const i = openOverlays.indexOf(token); if (i >= 0) openOverlays.splice(i, 1); };
-
-    const onKey = (e) => { if (e.key === 'Escape' && isTop()) { e.stopPropagation(); onClose && onClose(); } };
-    window.addEventListener('keydown', onKey);
-
-    // Give the sheet a history entry so the Android back button closes it instead
-    // of leaving the app. Harmless where there is no back button (iOS home-screen).
-    let dismissedByBack = false;
-    let pushed = false;
-    try { history.pushState({ kotsuOverlay: true }, ''); pushed = true; } catch (e) {}
-    const onPop = () => {
-      if (!isTop()) return;
-      dismissedByBack = true;
-      drop();
-      onClose && onClose();
-    };
-    window.addEventListener('popstate', onPop);
-
+    if (!overlayListening) {
+      overlayListening = true;
+      window.addEventListener('popstate', onOverlayPopState);
+      window.addEventListener('keydown', onOverlayKeyDown);
+    }
+    armOverlayHistory();
     return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('popstate', onPop);
-      drop();
-      // closed from the UI rather than by back — take our entry back off the stack
-      if (pushed && !dismissedByBack) { try { history.back(); } catch (e) {} }
+      const i = openOverlays.indexOf(token);
+      if (i >= 0) openOverlays.splice(i, 1);
+      // Deferred so a sheet opening another sheet can take the entry over. If back
+      // already consumed it, historyArmed is false and we leave history alone.
+      setTimeout(() => {
+        if (openOverlays.length === 0 && historyArmed) {
+          historyArmed = false;
+          try { history.back(); } catch (e) {}
+        }
+      }, 0);
     };
-  }, [open, onClose]);
+  }, [open]);
 }
 
 function Sheet({ open, onClose, children, maxWidth = 480 }) {
