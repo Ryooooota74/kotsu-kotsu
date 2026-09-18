@@ -44,6 +44,15 @@ module.exports = async function run(t) {
        'overlays share a single history entry');
   t.eq((html.match(/pushState/g) || []).length, 1, 'only one place pushes a history entry');
 
+  // destructive one-tap deletes on a phone: Delete sits 2px from Edit on both rows
+  t.ok(html.includes('Delete to-do') && html.includes('Delete group'),
+       'deleting a to-do or a group asks first');
+  // the box steppers must stay hidden on touch, and must beat IconBtn's inline display
+  t.ok(/\.box-ctrl \{ display: none !important/.test(html),
+       'box-count steppers are hidden on touch devices');
+  t.ok(html.includes('hscroll-more') && html.includes('useHScrollFade'),
+       'horizontal strips show that they continue off-screen');
+
   t.ok(html.includes('Move to previous day') && html.includes('Move to next day'),
        'tasks can move either way between days');
   t.ok(html.includes('Move group to previous day') && html.includes('Move group to next day'),

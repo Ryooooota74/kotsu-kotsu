@@ -165,6 +165,7 @@ function TodoForm({ initial, onCancel, onSave }) {
 // ── To-do card ────────────────────────────────────────────────
 function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle, dragging }) {
   const { data, actions } = React.useContext(StoreContext);
+  const [confirming, setConfirming] = React.useState(false);
   const info = dueInfo(todo.due);
   // optional category color-coding on the drag handle (falls back to the neutral grip)
   const catColor = todo.category ? getCat(data, todo.category).color : null;
@@ -213,10 +214,16 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
           )}
           <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
             <IconBtn className="del-btn" size={26} onClick={() => onEdit(todo)} title="Edit"><IconPencil size={16} /></IconBtn>
-            <IconBtn className="del-btn" size={26} danger onClick={() => actions.deleteTodo(todo.id)} title="Delete"><IconTrash size={16} /></IconBtn>
+            <IconBtn className="del-btn" size={26} danger onClick={() => setConfirming(true)} title="Delete"><IconTrash size={16} /></IconBtn>
           </div>
         </div>
       </div>
+      {/* Delete sits 2px from Edit on a phone, so a mis-tap has to be recoverable */}
+      <ConfirmSheet open={confirming} title="Delete to-do"
+        message={`Delete “${todo.title}”? This can’t be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => { actions.deleteTodo(todo.id); setConfirming(false); }}
+        onClose={() => setConfirming(false)} />
     </div>
   );
 }

@@ -183,6 +183,25 @@ function ctrlBtn(boxSize) {
 }
 
 // ── Bottom sheet / modal shell ────────────────────────────────
+// A horizontally scrolling strip has its scrollbar hidden like everything else, so
+// nothing signals that it continues off-screen. Fade the trailing edge while there
+// is still something to scroll to.
+function useHScrollFade() {
+  const ref = React.useRef(null);
+  const [more, setMore] = React.useState(false);
+  const check = React.useCallback(() => {
+    const el = ref.current;
+    if (el) setMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+  }, []);
+  // after every render: the chip count changes without the strip itself resizing
+  React.useEffect(check);
+  React.useEffect(() => {
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [check]);
+  return { ref, onScroll: check, className: 'scrollarea' + (more ? ' hscroll-more' : '') };
+}
+
 // Typing straight into the store deep-clones and re-serialises the whole document
 // on every keystroke, and re-arms the cloud push each time. Hold a local draft and
 // commit it once the field settles instead.
@@ -451,5 +470,5 @@ function useBackup(toast) {
 }
 
 Object.assign(window, {
-  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet, useBackup, AppErrorBoundary, CrashScreen, useDismissable, useDraftField,
+  AppCtx, Btn, IconBtn, Segmented, PillToggle, TagPill, Counter, CheckboxRow, Sheet, useBackup, AppErrorBoundary, CrashScreen, useDismissable, useDraftField, useHScrollFade,
 });

@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1789228378';</script>
+<script>window.__BUILD='1789765549';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -78,7 +78,13 @@
   .task-card:hover .del-btn { opacity: 1; }
   /* touch devices never hover, so these would stay invisible — always show them */
   @media (hover: none) {
-    .box-ctrl, .del-btn { opacity: 1; }
+    .del-btn { opacity: 1; }
+    /* ...except the box-count steppers. At 20px with 5px gaps they sit right next
+       to the checkboxes, so a thumb aimed at a box can change how many boxes the
+       task has instead. They also eat ~50px of every row, which is what squeezes
+       the title on a narrow phone. The edit sheet's "Times per day" stepper does
+       the same job with room to aim. */
+    .box-ctrl { display: none !important; }   /* beats IconBtn's inline display */
   }
 
   /* app-like UI: disable text selection / long-press callout everywhere except
@@ -106,6 +112,13 @@
   .btn-outline:hover { background: var(--bg2); }
   .btn-ghost:hover { background: var(--bg3); color: var(--text); }
   .btn-accentGhost:hover { filter: brightness(0.97); }
+
+  /* Scrollbars are hidden throughout, so a horizontal strip gives no hint that it
+     continues off-screen. Fade the trailing edge while there is more to scroll to. */
+  .hscroll-more {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  }
 
   /* hide scrollbars inside the phone */
   .scrollarea::-webkit-scrollbar { width: 0; height: 0; }
@@ -1663,6 +1676,24 @@ function ctrlBtn(boxSize) {
     flexShrink: 0
   };
 }
+function useHScrollFade() {
+  const ref = React.useRef(null);
+  const [more, setMore] = React.useState(false);
+  const check = React.useCallback(() => {
+    const el = ref.current;
+    if (el) setMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+  }, []);
+  React.useEffect(check);
+  React.useEffect(() => {
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [check]);
+  return {
+    ref,
+    onScroll: check,
+    className: 'scrollarea' + (more ? ' hscroll-more' : '')
+  };
+}
 function useDraftField(value, commit, delay = 400) {
   const [draft, setDraft] = React.useState(value);
   const editing = React.useRef(false);
@@ -2041,7 +2072,8 @@ Object.assign(window, {
   AppErrorBoundary,
   CrashScreen,
   useDismissable,
-  useDraftField
+  useDraftField,
+  useHScrollFade
 });
 const PAGES = [{
   key: 'tasks',
@@ -4289,6 +4321,7 @@ function DayTimeline({
   } = React.useContext(StoreContext);
   const scrollRef = React.useRef(null);
   const laneRef = React.useRef(null);
+  const trayScroll = useHScrollFade();
   const [drag, setDrag] = React.useState(null);
   const tasks = data.days[dkey] || [];
   const events = (data.events || []).filter(e => e.date === dkey);
@@ -4451,14 +4484,13 @@ function DayTimeline({
       letterSpacing: 0.4,
       marginBottom: 8
     }
-  }, "Unscheduled \xB7 ", unscheduled.length), React.createElement("div", {
-    className: "scrollarea",
+  }, "Unscheduled \xB7 ", unscheduled.length), React.createElement("div", _extends({}, trayScroll, {
     style: {
       display: 'flex',
       gap: 8,
       overflowX: 'auto'
     }
-  }, unscheduled.map(t => {
+  }), unscheduled.map(t => {
     const cat = getCat(data, t.category);
     return React.createElement("button", {
       type: "button",
@@ -6346,6 +6378,7 @@ function TodoCard({
     data,
     actions
   } = React.useContext(StoreContext);
+  const [confirming, setConfirming] = React.useState(false);
   const info = dueInfo(todo.due);
   const catColor = todo.category ? getCat(data, todo.category).color : null;
   const cardBorder = dragging ? 'var(--accent)' : catColor || 'var(--border)';
@@ -6466,11 +6499,21 @@ function TodoCard({
     className: "del-btn",
     size: 26,
     danger: true,
-    onClick: () => actions.deleteTodo(todo.id),
+    onClick: () => setConfirming(true),
     title: "Delete"
   }, React.createElement(IconTrash, {
     size: 16
-  }))))));
+  }))))), React.createElement(ConfirmSheet, {
+    open: confirming,
+    title: "Delete to-do",
+    message: `Delete “${todo.title}”? This can’t be undone.`,
+    confirmLabel: "Delete",
+    onConfirm: () => {
+      actions.deleteTodo(todo.id);
+      setConfirming(false);
+    },
+    onClose: () => setConfirming(false)
+  }));
 }
 function DividerRow({
   divider,
@@ -6832,6 +6875,7 @@ function GroupCard({
     data,
     actions
   } = React.useContext(StoreContext);
+  const [confirming, setConfirming] = React.useState(false);
   const gCatId = g.category || g.tasks[0] && g.tasks[0].category;
   const gColor = gCatId ? getCat(data, gCatId).color : null;
   return React.createElement("div", {
@@ -6891,7 +6935,7 @@ function GroupCard({
     className: "del-btn",
     size: 28,
     danger: true,
-    onClick: () => actions.deleteGroup(g.id),
+    onClick: () => setConfirming(true),
     title: "Delete"
   }, React.createElement(IconTrash, {
     size: 16
@@ -6965,7 +7009,17 @@ function GroupCard({
     }
   }, React.createElement(IconPlus, {
     size: 14
-  }), " Add to today")));
+  }), " Add to today")), React.createElement(ConfirmSheet, {
+    open: confirming,
+    title: "Delete group",
+    message: `Delete “${g.name}” and its ${g.tasks.length} task${g.tasks.length === 1 ? '' : 's'}? This can’t be undone. Tasks already added to a day stay where they are.`,
+    confirmLabel: "Delete group",
+    onConfirm: () => {
+      actions.deleteGroup(g.id);
+      setConfirming(false);
+    },
+    onClose: () => setConfirming(false)
+  }));
 }
 function GroupEditor({
   initial,

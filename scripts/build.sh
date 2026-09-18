@@ -87,7 +87,13 @@ cat > "$TMP" <<'HTMLHEAD'
   .task-card:hover .del-btn { opacity: 1; }
   /* touch devices never hover, so these would stay invisible — always show them */
   @media (hover: none) {
-    .box-ctrl, .del-btn { opacity: 1; }
+    .del-btn { opacity: 1; }
+    /* ...except the box-count steppers. At 20px with 5px gaps they sit right next
+       to the checkboxes, so a thumb aimed at a box can change how many boxes the
+       task has instead. They also eat ~50px of every row, which is what squeezes
+       the title on a narrow phone. The edit sheet's "Times per day" stepper does
+       the same job with room to aim. */
+    .box-ctrl { display: none !important; }   /* beats IconBtn's inline display */
   }
 
   /* app-like UI: disable text selection / long-press callout everywhere except
@@ -115,6 +121,13 @@ cat > "$TMP" <<'HTMLHEAD'
   .btn-outline:hover { background: var(--bg2); }
   .btn-ghost:hover { background: var(--bg3); color: var(--text); }
   .btn-accentGhost:hover { filter: brightness(0.97); }
+
+  /* Scrollbars are hidden throughout, so a horizontal strip gives no hint that it
+     continues off-screen. Fade the trailing edge while there is more to scroll to. */
+  .hscroll-more {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  }
 
   /* hide scrollbars inside the phone */
   .scrollarea::-webkit-scrollbar { width: 0; height: 0; }

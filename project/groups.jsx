@@ -3,6 +3,7 @@
 
 function GroupCard({ g, dkey, toast, onEdit }) {
   const { data, actions } = React.useContext(StoreContext);
+  const [confirming, setConfirming] = React.useState(false);
   // a group is one category — color the card frame with it
   const gCatId = g.category || (g.tasks[0] && g.tasks[0].category);
   const gColor = gCatId ? getCat(data, gCatId).color : null;
@@ -18,7 +19,7 @@ function GroupCard({ g, dkey, toast, onEdit }) {
         </div>
         <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
           <IconBtn className="del-btn" size={28} onClick={() => onEdit(g)} title="Edit"><IconPencil size={16} /></IconBtn>
-          <IconBtn className="del-btn" size={28} danger onClick={() => actions.deleteGroup(g.id)} title="Delete"><IconTrash size={16} /></IconBtn>
+          <IconBtn className="del-btn" size={28} danger onClick={() => setConfirming(true)} title="Delete"><IconTrash size={16} /></IconBtn>
         </div>
       </div>
 
@@ -45,6 +46,13 @@ function GroupCard({ g, dkey, toast, onEdit }) {
           toast(`Added ${g.tasks.length} tasks to today`);
         }}><IconPlus size={14} /> Add to today</Btn>
       </div>
+
+      {/* one tap used to destroy the whole template, 2px from Edit */}
+      <ConfirmSheet open={confirming} title="Delete group"
+        message={`Delete “${g.name}” and its ${g.tasks.length} task${g.tasks.length === 1 ? '' : 's'}? This can’t be undone. Tasks already added to a day stay where they are.`}
+        confirmLabel="Delete group"
+        onConfirm={() => { actions.deleteGroup(g.id); setConfirming(false); }}
+        onClose={() => setConfirming(false)} />
     </div>
   );
 }

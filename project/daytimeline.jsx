@@ -44,6 +44,7 @@ function DayTimeline({ dkey, onEditEvent, onEditTask }) {
   const { data, actions } = React.useContext(StoreContext);
   const scrollRef = React.useRef(null);
   const laneRef = React.useRef(null);
+  const trayScroll = useHScrollFade();
   const [drag, setDrag] = React.useState(null); // {kind:'move'|'resize', id, type, offset, start, duration}
 
   const tasks = (data.days[dkey] || []);
@@ -158,7 +159,7 @@ function DayTimeline({ dkey, onEditEvent, onEditTask }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
             Unscheduled · {unscheduled.length}
           </div>
-          <div className="scrollarea" style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+          <div {...trayScroll} style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
             {unscheduled.map(t => {
               const cat = getCat(data, t.category);
               return (
