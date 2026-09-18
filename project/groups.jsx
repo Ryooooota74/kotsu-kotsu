@@ -17,9 +17,9 @@ function GroupCard({ g, dkey, toast, onEdit }) {
           {gColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: gColor, flexShrink: 0 }} />}
           <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
         </div>
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-          <IconBtn className="del-btn" size={28} onClick={() => onEdit(g)} title="Edit"><IconPencil size={16} /></IconBtn>
-          <IconBtn className="del-btn" size={28} danger onClick={() => setConfirming(true)} title="Delete"><IconTrash size={16} /></IconBtn>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <IconBtn className="del-btn" size={32} onClick={() => onEdit(g)} title="Edit"><IconPencil size={16} /></IconBtn>
+          <IconBtn className="del-btn" size={32} danger onClick={() => setConfirming(true)} title="Delete"><IconTrash size={16} /></IconBtn>
         </div>
       </div>
 

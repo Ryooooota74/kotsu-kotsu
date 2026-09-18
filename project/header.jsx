@@ -40,7 +40,7 @@ function AppHeader({ page, setPage, actions }) {
         {PAGES.map(p => {
           const active = page === p.key;
           return (
-            <button type="button" key={p.key} onClick={() => setPage(p.key)}
+            <button type="button" key={p.key} onClick={() => setPage(p.key)} className="tap-nav"
               style={{
                 position: 'relative', border: 'none', background: 'transparent',
                 cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13.5,

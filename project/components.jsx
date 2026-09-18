@@ -150,7 +150,7 @@ function CheckboxRow({ completedCount, totalBoxes, onChange, onAddBox, onRemoveB
         {Array.from({ length: totalBoxes }).map((_, i) => {
           const filled = i < completedCount;
           return (
-            <button type="button" key={i} onClick={() => click(i)} aria-label={`box ${i + 1}`}
+            <button type="button" key={i} onClick={() => click(i)} aria-label={`box ${i + 1}`} className="cbox"
               style={{
                 width: boxSize, height: boxSize, borderRadius: Math.max(4, boxSize * 0.28),
                 border: '1.5px solid ' + (filled ? 'var(--accent)' : 'var(--border2)'),

@@ -306,7 +306,7 @@ function DateNav({ dkey, setDkey, recordKeys }) {
   return (
     <div style={{ position: 'relative', padding: '8px 12px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <IconBtn size={38} onClick={() => setDkey(dateKey(addDays(d, -1)))} title="Previous day"
+        <IconBtn className="tap-icon" size={38} onClick={() => setDkey(dateKey(addDays(d, -1)))} title="Previous day"
           style={{ border: '1px solid var(--border)' }}><IconArrowLeft size={18} /></IconBtn>
         <button type="button" onClick={() => setCalOpen(o => !o)}
           style={{
@@ -320,7 +320,7 @@ function DateNav({ dkey, setDkey, recordKeys }) {
           </div>
           <IconCalendar size={17} style={{ color: 'var(--text2)' }} />
         </button>
-        <IconBtn size={38} onClick={() => setDkey(dateKey(addDays(d, 1)))} title="Next day"
+        <IconBtn className="tap-icon" size={38} onClick={() => setDkey(dateKey(addDays(d, 1)))} title="Next day"
           style={{ border: '1px solid var(--border)' }}><IconArrowRight size={18} /></IconBtn>
       </div>
 
@@ -564,7 +564,7 @@ function HeaderMenu({ items }) {
   const [open, setOpen] = React.useState(false);
   return (
     <div style={{ position: 'relative' }}>
-      <IconBtn size={36} onClick={() => setOpen(o => !o)} title="Menu"
+      <IconBtn className="tap-icon" size={36} onClick={() => setOpen(o => !o)} title="Menu"
         style={{ border: '1px solid var(--border)' }}><IconMenu size={18} /></IconBtn>
       {open && (
         <>
@@ -646,7 +646,7 @@ function TasksPage({ page, setPage, dkey, setDkey, onAdd, onApplyGroup, onEditTa
             <CategoryPill key={c.id} cat={c} active={cat === c.id} count={counts[c.id] || 0}
               onClick={() => setCat(c.id)} onLongPress={() => setActionCat(c.id)} />
           ))}
-          <button type="button" onClick={() => setManageOpen(true)} title="Manage categories"
+          <button type="button" onClick={() => setManageOpen(true)} title="Manage categories" className="tap-icon"
             style={{
               flexShrink: 0, width: 34, height: 34, borderRadius: 999, cursor: 'pointer',
               border: '1px dashed var(--border2)', background: 'var(--bg)', color: 'var(--text2)',

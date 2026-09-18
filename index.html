@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Kotsu-Kotsu" />
-<script>window.__BUILD='1789765549';</script>
+<script>window.__BUILD='1789766025';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -85,6 +85,24 @@
        the title on a narrow phone. The edit sheet's "Times per day" stepper does
        the same job with room to aim. */
     .box-ctrl { display: none !important; }   /* beats IconBtn's inline display */
+
+    /* A fingertip covers roughly 40px. These controls were 34-38px, which is
+       fiddly rather than dangerous, but only on touch — pointer devices aim
+       precisely and the extra height would just cost screen space there.
+       width/height need !important: IconBtn sets both inline. */
+    .tap-nav { min-height: 44px; }
+    .tap-pill { min-height: 44px; }
+    .tap-icon { width: 44px !important; height: 44px !important; }
+
+    /* The checkboxes are the most-tapped control and sit 5px apart, so their hit
+       area can only grow vertically without swallowing the box next door. That
+       still helps: on a row of small squares the misses are thumb-roll, not aim.
+       8px each side fills the card row and stops short of the row below. */
+    .cbox { position: relative; }
+    .cbox::after {
+      content: ''; position: absolute;
+      left: 0; right: 0; top: -8px; bottom: -8px;
+    }
   }
 
   /* app-like UI: disable text selection / long-press callout everywhere except
@@ -1629,6 +1647,7 @@ function CheckboxRow({
       key: i,
       onClick: () => click(i),
       "aria-label": `box ${i + 1}`,
+      className: "cbox",
       style: {
         width: boxSize,
         height: boxSize,
@@ -2157,6 +2176,7 @@ function AppHeader({
       type: "button",
       key: p.key,
       onClick: () => setPage(p.key),
+      className: "tap-nav",
       style: {
         position: 'relative',
         border: 'none',
@@ -2316,6 +2336,7 @@ function CategoryPill({
   return React.createElement("button", _extends({
     type: "button"
   }, handlers, {
+    className: "tap-pill",
     style: {
       flexShrink: 0,
       display: 'inline-flex',
@@ -3563,6 +3584,7 @@ function DateNav({
       gap: 6
     }
   }, React.createElement(IconBtn, {
+    className: "tap-icon",
     size: 38,
     onClick: () => setDkey(dateKey(addDays(d, -1))),
     title: "Previous day",
@@ -3609,6 +3631,7 @@ function DateNav({
       color: 'var(--text2)'
     }
   })), React.createElement(IconBtn, {
+    className: "tap-icon",
     size: 38,
     onClick: () => setDkey(dateKey(addDays(d, 1))),
     title: "Next day",
@@ -3973,6 +3996,7 @@ function HeaderMenu({
       position: 'relative'
     }
   }, React.createElement(IconBtn, {
+    className: "tap-icon",
     size: 36,
     onClick: () => setOpen(o => !o),
     title: "Menu",
@@ -4145,6 +4169,7 @@ function TasksPage({
     type: "button",
     onClick: () => setManageOpen(true),
     title: "Manage categories",
+    className: "tap-icon",
     style: {
       flexShrink: 0,
       width: 34,
@@ -6485,19 +6510,19 @@ function TodoCard({
   }), " Add to today"), React.createElement("div", {
     style: {
       display: 'flex',
-      gap: 2,
+      gap: 8,
       flexShrink: 0
     }
   }, React.createElement(IconBtn, {
     className: "del-btn",
-    size: 26,
+    size: 32,
     onClick: () => onEdit(todo),
     title: "Edit"
   }, React.createElement(IconPencil, {
     size: 16
   })), React.createElement(IconBtn, {
     className: "del-btn",
-    size: 26,
+    size: 32,
     danger: true,
     onClick: () => setConfirming(true),
     title: "Delete"
@@ -6921,19 +6946,19 @@ function GroupCard({
   }, g.name)), React.createElement("div", {
     style: {
       display: 'flex',
-      gap: 2,
+      gap: 8,
       flexShrink: 0
     }
   }, React.createElement(IconBtn, {
     className: "del-btn",
-    size: 28,
+    size: 32,
     onClick: () => onEdit(g),
     title: "Edit"
   }, React.createElement(IconPencil, {
     size: 16
   })), React.createElement(IconBtn, {
     className: "del-btn",
-    size: 28,
+    size: 32,
     danger: true,
     onClick: () => setConfirming(true),
     title: "Delete"

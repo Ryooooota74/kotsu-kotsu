@@ -94,6 +94,24 @@ cat > "$TMP" <<'HTMLHEAD'
        the title on a narrow phone. The edit sheet's "Times per day" stepper does
        the same job with room to aim. */
     .box-ctrl { display: none !important; }   /* beats IconBtn's inline display */
+
+    /* A fingertip covers roughly 40px. These controls were 34-38px, which is
+       fiddly rather than dangerous, but only on touch — pointer devices aim
+       precisely and the extra height would just cost screen space there.
+       width/height need !important: IconBtn sets both inline. */
+    .tap-nav { min-height: 44px; }
+    .tap-pill { min-height: 44px; }
+    .tap-icon { width: 44px !important; height: 44px !important; }
+
+    /* The checkboxes are the most-tapped control and sit 5px apart, so their hit
+       area can only grow vertically without swallowing the box next door. That
+       still helps: on a row of small squares the misses are thumb-roll, not aim.
+       8px each side fills the card row and stops short of the row below. */
+    .cbox { position: relative; }
+    .cbox::after {
+      content: ''; position: absolute;
+      left: 0; right: 0; top: -8px; bottom: -8px;
+    }
   }
 
   /* app-like UI: disable text selection / long-press callout everywhere except

@@ -212,9 +212,9 @@ function TodoCard({ todo, dkey, todayKey, addedToday, toast, onEdit, dragHandle,
                 toast(`Added “${todo.title}” to today`);
               }}><IconPlus size={14} /> Add to today</Btn>
           )}
-          <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-            <IconBtn className="del-btn" size={26} onClick={() => onEdit(todo)} title="Edit"><IconPencil size={16} /></IconBtn>
-            <IconBtn className="del-btn" size={26} danger onClick={() => setConfirming(true)} title="Delete"><IconTrash size={16} /></IconBtn>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <IconBtn className="del-btn" size={32} onClick={() => onEdit(todo)} title="Edit"><IconPencil size={16} /></IconBtn>
+            <IconBtn className="del-btn" size={32} danger onClick={() => setConfirming(true)} title="Delete"><IconTrash size={16} /></IconBtn>
           </div>
         </div>
       </div>

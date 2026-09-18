@@ -79,7 +79,7 @@ function CategoryColorPicker({ value, onChange, size = 26 }) {
 function CategoryPill({ cat, active, count, onClick, onLongPress }) {
   const handlers = useLongPress(onLongPress, onClick);
   return (
-    <button type="button" {...handlers}
+    <button type="button" {...handlers} className="tap-pill"
       style={{
         flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 7,
         padding: '8px 13px', borderRadius: 999, cursor: 'pointer',

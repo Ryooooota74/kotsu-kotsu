@@ -50,6 +50,16 @@ module.exports = async function run(t) {
   // the box steppers must stay hidden on touch, and must beat IconBtn's inline display
   t.ok(/\.box-ctrl \{ display: none !important/.test(html),
        'box-count steppers are hidden on touch devices');
+  // touch-only tap targets; pointer devices must keep the tighter layout
+  t.ok(/\.tap-nav \{ min-height: 44px/.test(html) && /\.tap-pill \{ min-height: 44px/.test(html)
+       && /\.tap-icon \{ width: 44px !important/.test(html),
+       'nav, pills and icon buttons reach 44px on touch');
+  t.ok(html.includes('tap-nav') && html.includes('tap-pill') && html.includes('tap-icon'),
+       'the tap-target classes are actually applied');
+  // the checkbox hit area may only grow vertically — 5px horizontal gaps
+  t.ok(/\.cbox::after/.test(html) && /left: 0; right: 0; top: -8px; bottom: -8px/.test(html),
+       'checkbox hit area grows vertically only');
+
   t.ok(html.includes('hscroll-more') && html.includes('useHScrollFade'),
        'horizontal strips show that they continue off-screen');
 
